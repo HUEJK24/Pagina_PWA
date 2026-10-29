@@ -8,13 +8,14 @@
       name="description"
       content="Registro de reportes técnicos en campo, con funcionamiento sin conexión."
     />
-    <meta name="theme-color" content="#14191b" />
+    <meta name="theme-color" content="#f2f4f0" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/icon-192.png" type="image/png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="preload" href="/fonts/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Reportes" />
     <meta name="format-detection" content="telephone=no" />
   </head>
@@ -22,38 +23,77 @@
     <a class="skip-link" href="#main">Saltar al contenido</a>
 
     <div class="top">
-      <header class="app-header">
-        <div class="brand">
-          <span class="brand-mark" aria-hidden="true">RT</span>
-          <div class="brand-text">
-            <p class="brand-kicker">Servicios técnicos</p>
-            <h1>Reportes de campo</h1>
+      <header class="topbar">
+        <div class="topbar-inner">
+          <a class="brand" href="/?vista=captura" data-vista="captura">
+            <svg
+              class="brand-mark"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              aria-hidden="true"
+            >
+              <path
+                d="M8.5 4.5H7A2 2 0 0 0 5 6.5v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-13a2 2 0 0 0-2-2h-1.5"
+                stroke-linecap="round"
+              />
+              <rect x="8.5" y="2.5" width="7" height="4" rx="1.2" />
+              <path d="m9 13.5 2.2 2.2L15.5 11" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="brand-text">
+              <span class="brand-name">Reportes de campo</span>
+              <span class="brand-scope">Servicios técnicos</span>
+            </span>
+          </a>
+
+          <nav class="topnav" aria-label="Secciones">
+            <button class="nav-tab is-active" type="button" data-vista="captura" aria-current="page">
+              Capturar
+            </button>
+            <button class="nav-tab" type="button" data-vista="reportes">
+              Reportes
+              <span id="contador-top" class="nav-count" hidden>0</span>
+            </button>
+          </nav>
+
+          <div class="topbar-actions">
+            <button id="btn-instalar" class="btn btn-ghost" type="button" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" focusable="false">
+                <path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              Instalar
+            </button>
+            <button id="btn-ios" class="btn btn-ghost" type="button" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" focusable="false">
+                <path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              Instalar
+            </button>
           </div>
         </div>
-        <button id="btn-instalar" class="btn btn-ghost" type="button" hidden>
-          Instalar app
-        </button>
-        <button id="btn-ios" class="btn btn-ghost" type="button" hidden>
-          Cómo instalar
-        </button>
       </header>
 
-      <div id="estado-red" class="netbar" role="status" aria-live="polite">
-        <span class="netbar-dot" aria-hidden="true"></span>
-        <span id="estado-texto">Conectado a Internet</span>
-        <span id="estado-cola" class="netbar-meta"></span>
+      <div id="estado-red" class="statusbar" role="status" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="estado-texto">Conectado</span>
+        <span id="estado-cola" class="status-meta"></span>
       </div>
     </div>
 
-    <main id="main" class="main">
-      <section id="vista-captura" class="vista" aria-labelledby="titulo-captura">
-        <div class="section-head">
-          <h2 id="titulo-captura">Nuevo reporte</h2>
-          <p class="section-note">Se guarda en el teléfono primero. La red es opcional.</p>
-        </div>
+    <main id="main" class="main" tabindex="-1">
+      <section id="vista-captura" class="view" aria-labelledby="titulo-captura">
+        <header class="page-head">
+          <h1 id="titulo-captura" tabindex="-1">Nuevo reporte</h1>
+          <p class="page-sub">
+            Cliente, servicio y diagnóstico. Se guarda en el teléfono aunque no haya señal.
+          </p>
+        </header>
 
         <form id="form-reporte" class="form" novalidate>
-          <div class="card form-card">
+          <section class="panel" aria-labelledby="panel-datos">
+            <h2 id="panel-datos" class="panel-title">Datos del servicio</h2>
+
             <div class="grid-2">
               <div class="field">
                 <label for="tecnico">Técnico</label>
@@ -103,22 +143,29 @@
             </div>
 
             <div class="field">
-              <label for="descripcion">Diagnóstico y solución</label>
+              <div class="label-row">
+                <label for="descripcion">Diagnóstico y solución</label>
+                <span class="hint" id="contador-descripcion">0 / 4000</span>
+              </div>
               <textarea
                 id="descripcion"
                 name="descripcion"
-                rows="4"
+                rows="5"
                 maxlength="4000"
                 required
                 placeholder="Qué encontró, qué hizo y qué queda pendiente"
               ></textarea>
-              <p class="hint"><span id="contador-descripcion">0</span> / 4000 caracteres</p>
             </div>
-          </div>
+          </section>
 
-          <div class="card form-card">
+          <section class="panel" aria-labelledby="panel-ubicacion">
+            <div class="panel-head">
+              <h2 id="panel-ubicacion" class="panel-title">Ubicación</h2>
+              <p class="panel-note">Referencia escrita o coordenadas del GPS.</p>
+            </div>
+
             <div class="field">
-              <label for="ubicacion">Ubicación</label>
+              <label for="ubicacion">Referencia del lugar</label>
               <input
                 id="ubicacion"
                 name="ubicacion"
@@ -128,41 +175,75 @@
               />
             </div>
 
-            <div class="gps-row">
+            <div class="gps">
               <button id="btn-gps" class="btn btn-secondary" type="button">
-                Usar mi ubicación GPS
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" focusable="false">
+                  <circle cx="12" cy="12" r="3.2" />
+                  <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke-linecap="round" />
+                  <circle cx="12" cy="12" r="7.5" />
+                </svg>
+                Capturar GPS
               </button>
-              <p id="gps-estado" class="gps-estado">Sin coordenadas</p>
+              <p id="gps-estado" class="gps-estado" aria-live="polite">Sin coordenadas</p>
+              <a id="gps-mapa" class="text-link" href="#" target="_blank" rel="noopener noreferrer" hidden>
+                Ver mapa
+              </a>
             </div>
 
             <input id="lat" name="lat" type="hidden" />
             <input id="lng" name="lng" type="hidden" />
-          </div>
+          </section>
 
           <p id="form-error" class="form-error" role="alert" hidden></p>
 
-          <button class="btn btn-primary btn-block" type="submit" id="btn-guardar">
-            Guardar reporte
-          </button>
+          <div class="form-actions">
+            <button class="btn btn-primary btn-block" type="submit" id="btn-guardar">
+              Guardar reporte
+            </button>
+            <p class="form-note">Si no hay red, queda en cola y se envía solo al reconectar.</p>
+          </div>
         </form>
       </section>
 
-      <section id="vista-reportes" class="vista" aria-labelledby="titulo-reportes" hidden>
-        <div class="section-head section-head-row">
+      <section id="vista-reportes" class="view" aria-labelledby="titulo-reportes" hidden>
+        <header class="page-head page-head-row">
           <div>
-            <h2 id="titulo-reportes">Reportes</h2>
-            <p class="section-note">Guardados en este dispositivo.</p>
+            <h1 id="titulo-reportes" tabindex="-1">Reportes</h1>
+            <p id="resumen-reportes" class="page-sub">Guardados en este dispositivo.</p>
           </div>
-          <button id="btn-sincronizar" class="btn btn-secondary btn-small" type="button">
+          <button id="btn-sincronizar" class="btn btn-secondary btn-sync" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" focusable="false">
+              <path d="M19 8a7.5 7.5 0 0 0-13-2M5 16a7.5 7.5 0 0 0 13 2" stroke-linecap="round" />
+              <path d="M19 4v4h-4M5 20v-4h4" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
             Sincronizar
+            <span id="pendientes-sync" class="btn-count" hidden>0</span>
           </button>
-        </div>
+        </header>
 
-        <div id="lista-reportes" class="lista"></div>
+        <div id="lista-reportes" class="ledger"></div>
 
         <div id="lista-vacia" class="empty" hidden>
+          <svg
+            class="empty-mark"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            aria-hidden="true"
+          >
+            <path
+              d="M8.5 4.5H7A2 2 0 0 0 5 6.5v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-13a2 2 0 0 0-2-2h-1.5"
+              stroke-linecap="round"
+            />
+            <rect x="8.5" y="2.5" width="7" height="4" rx="1.2" />
+            <path d="M8.5 12h7M8.5 16h4.5" stroke-linecap="round" />
+          </svg>
           <p class="empty-title">Todavía no hay reportes</p>
-          <p class="empty-text">Captura el primero desde la pestaña <strong>Capturar</strong>.</p>
+          <p class="empty-text">Los que captures aparecerán aquí, con o sin conexión.</p>
+          <button class="btn btn-primary" type="button" data-vista="captura">
+            Capturar el primero
+          </button>
         </div>
       </section>
     </main>
@@ -170,7 +251,7 @@
     <nav class="tabbar" aria-label="Navegación principal">
       <button class="tab is-active" type="button" data-vista="captura" aria-current="page">
         <span class="tab-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
             <path d="M12 5v14M5 12h14" stroke-linecap="round" />
           </svg>
         </span>
@@ -178,7 +259,7 @@
       </button>
       <button class="tab" type="button" data-vista="reportes">
         <span class="tab-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
             <path d="M7 4h10a2 2 0 0 1 2 2v14l-7-4-7 4V6a2 2 0 0 1 2-2Z" stroke-linejoin="round" />
           </svg>
         </span>

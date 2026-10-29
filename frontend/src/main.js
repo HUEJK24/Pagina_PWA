@@ -17,11 +17,15 @@ const ui = {
   btnIos: $('#btn-ios'),
   dialogoIos: $('#dialogo-ios'),
   gpsEstado: $('#gps-estado'),
+  gpsMapa: $('#gps-mapa'),
   lat: $('#lat'),
   lng: $('#lng'),
   lista: $('#lista-reportes'),
   vacio: $('#lista-vacia'),
   contador: $('#contador'),
+  contadorTop: $('#contador-top'),
+  pendientesSync: $('#pendientes-sync'),
+  resumen: $('#resumen-reportes'),
   netbar: $('#estado-red'),
   estadoTexto: $('#estado-texto'),
   estadoCola: $('#estado-cola'),
@@ -30,10 +34,37 @@ const ui = {
   contadorDescripcion: $('#contador-descripcion'),
 }
 
-const formatoFecha = new Intl.DateTimeFormat('es-MX', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
+const formatoHora = new Intl.DateTimeFormat('es-MX', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
 })
+
+const formatoUltima = new Intl.DateTimeFormat('es-MX', {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+
+const formatoDia = new Intl.DateTimeFormat('es-MX', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+})
+
+const ESTADOS = {
+  pending: 'Pendiente de sincronizar',
+  synced: 'Sincronizado',
+  error: 'Error al enviar',
+}
+
+const ICONO_PIN = `
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+    <path d="M12 21s6.5-5.6 6.5-11a6.5 6.5 0 1 0-13 0C5.5 15.4 12 21 12 21Z" stroke-linejoin="round"/>
+    <circle cx="12" cy="10" r="2.3"/>
+  </svg>`
 
 let toastTimer = null
 let deferredPrompt = null
@@ -56,15 +87,19 @@ function aviso(mensaje, tipo = 'info') {
 function pintarRed() {
   const online = navigator.onLine
   ui.netbar.classList.toggle('is-offline', !online)
-  ui.estadoTexto.textContent = online ? 'Conectado a Internet' : 'Trabajando sin conexión'
-  actualizarCola()
+  ui.estadoTexto.textContent = online ? 'Conectado' : 'Trabajando sin conexión'
 }
 
-async function actualizarCola() {
+async function actualizarCola(totalGuardados, ultimaCaptura) {
   const pendientes = await contarPendientes()
   const errores = await db.reportes.where('syncStatus').equals('error').count()
+  const total = totalGuardados ?? (await db.reportes.count())
 
-  if (errores > 0) {
+  if (total === 0) {
+    ui.estadoCola.textContent = ''
+  } else if (errores > 0 && pendientes > 0) {
+    ui.estadoCola.textContent = `${pendientes} por sincronizar · ${errores} con error`
+  } else if (errores > 0) {
     ui.estadoCola.textContent = `${errores} con error`
   } else if (pendientes > 0) {
     ui.estadoCola.textContent = `${pendientes} por sincronizar`
@@ -72,110 +107,238 @@ async function actualizarCola() {
     ui.estadoCola.textContent = 'Todo sincronizado'
   }
 
-  const total = pendientes + errores
-  ui.contador.hidden = total === 0
-  ui.contador.textContent = String(total)
+  const enCola = pendientes + errores
+  for (const contador of [ui.contador, ui.contadorTop]) {
+    contador.hidden = enCola === 0
+    contador.textContent = String(enCola)
+  }
+
+  ui.pendientesSync.hidden = pendientes === 0
+  ui.pendientesSync.textContent = String(pendientes)
+  ui.btnSync.disabled = pendientes === 0
+  ui.btnSync.setAttribute(
+    'aria-label',
+    pendientes === 0 ? 'Sincronizar reportes' : `Sincronizar ${pendientes} reportes pendientes`
+  )
+
+  if (total === 0) {
+    ui.resumen.textContent = 'Guardados en este dispositivo.'
+  } else if (errores > 0 || pendientes > 0) {
+    const sustantivo = total === 1 ? 'reporte' : 'reportes'
+    const cola =
+      errores > 0 && pendientes > 0
+        ? `${pendientes} sin enviar · ${errores} con error`
+        : errores > 0
+          ? `${errores} con error`
+          : `${pendientes} sin enviar`
+    ui.resumen.textContent = `${total} ${sustantivo} en el teléfono · ${cola}`
+  } else if (ultimaCaptura) {
+    ui.resumen.textContent = `Última captura: ${formatoUltima.format(new Date(ultimaCaptura))}`
+  } else {
+    ui.resumen.textContent = 'Todo sincronizado.'
+  }
 }
 
-/* ---------- Lista ---------- */
+/* ---------- Listado ---------- */
+
+function claveDia(fecha) {
+  const d = new Date(fecha)
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+}
+
+function etiquetaDia(fecha) {
+  const hoy = new Date()
+  const ayer = new Date()
+  ayer.setDate(hoy.getDate() - 1)
+
+  if (claveDia(fecha) === claveDia(hoy)) return 'Hoy'
+  if (claveDia(fecha) === claveDia(ayer)) return 'Ayer'
+
+  const texto = formatoDia.format(new Date(fecha))
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
 
 function crearReporte(reporte) {
   const articulo = document.createElement('article')
   articulo.className = 'reporte'
   articulo.dataset.estado = reporte.syncStatus
 
-  const head = document.createElement('div')
-  head.className = 'reporte-head'
+  const meta = document.createElement('div')
+  meta.className = 'reporte-meta'
 
-  const identidad = document.createElement('div')
+  const hora = document.createElement('time')
+  hora.dateTime = reporte.createdAt
+  hora.textContent = formatoHora.format(new Date(reporte.createdAt))
+  meta.append(hora)
+
+  if (reporte.tecnico) {
+    const separador = document.createElement('span')
+    separador.textContent = '·'
+    separador.setAttribute('aria-hidden', 'true')
+
+    const tecnico = document.createElement('span')
+    tecnico.className = 'reporte-tecnico'
+    tecnico.textContent = reporte.tecnico
+
+    meta.append(separador, tecnico)
+  }
+
+  const estado = document.createElement('span')
+  estado.className = 'reporte-estado'
+  estado.textContent = ESTADOS[reporte.syncStatus] ?? ESTADOS.pending
+  if (reporte.lastError) estado.title = reporte.lastError
+  meta.append(estado)
+
   const cliente = document.createElement('h3')
   cliente.className = 'reporte-cliente'
   cliente.textContent = reporte.cliente
+
   const servicio = document.createElement('p')
   servicio.className = 'reporte-servicio'
   servicio.textContent = reporte.servicio
-  identidad.append(cliente, servicio)
-
-  const pill = document.createElement('span')
-  pill.className = 'pill'
-  if (reporte.syncStatus === 'synced') {
-    pill.classList.add('pill-synced')
-    pill.textContent = 'Sincronizado'
-  } else if (reporte.syncStatus === 'error') {
-    pill.classList.add('pill-error')
-    pill.textContent = 'Error al enviar'
-    if (reporte.lastError) pill.title = reporte.lastError
-  } else {
-    pill.classList.add('pill-pending')
-    pill.textContent = 'Pendiente de sincronizar'
-  }
-
-  head.append(identidad, pill)
 
   const descripcion = document.createElement('p')
   descripcion.className = 'reporte-desc'
   descripcion.textContent = reporte.descripcion
 
-  const foot = document.createElement('div')
-  foot.className = 'reporte-foot'
+  articulo.append(meta, cliente, servicio, descripcion)
 
-  const fecha = document.createElement('time')
-  fecha.dateTime = reporte.createdAt
-  fecha.textContent = formatoFecha.format(new Date(reporte.createdAt))
-
-  foot.append(fecha)
-
-  if (Number.isFinite(reporte.lat) && Number.isFinite(reporte.lng)) {
-    const enlace = document.createElement('a')
-    enlace.className = 'reporte-link'
-    enlace.href = `https://www.google.com/maps?q=${reporte.lat},${reporte.lng}`
-    enlace.target = '_blank'
-    enlace.rel = 'noopener noreferrer'
-    enlace.textContent = 'Ver ubicación'
-    foot.append(enlace)
+  if (reporte.syncStatus === 'error' && reporte.lastError) {
+    const error = document.createElement('p')
+    error.className = 'reporte-error'
+    error.textContent = `No se pudo enviar: ${reporte.lastError}`
+    articulo.append(error)
   }
 
-  articulo.append(head, descripcion, foot)
+  const tieneCoords = Number.isFinite(reporte.lat) && Number.isFinite(reporte.lng)
+  if (reporte.ubicacion || tieneCoords) {
+    const foot = document.createElement('div')
+    foot.className = 'reporte-foot'
+
+    if (reporte.ubicacion) {
+      const lugar = document.createElement('span')
+      lugar.className = 'reporte-lugar'
+      lugar.innerHTML = ICONO_PIN
+      lugar.append(reporte.ubicacion)
+      foot.append(lugar)
+    }
+
+    if (tieneCoords) {
+      const enlace = document.createElement('a')
+      enlace.className = 'reporte-link'
+      enlace.href = `https://www.google.com/maps?q=${reporte.lat},${reporte.lng}`
+      enlace.target = '_blank'
+      enlace.rel = 'noopener noreferrer'
+      enlace.textContent = 'Ver mapa'
+      foot.append(enlace)
+    }
+
+    articulo.append(foot)
+  }
+
   return articulo
 }
 
 async function renderReportes() {
   const reportes = await db.reportes.orderBy('createdAt').reverse().toArray()
-  ui.lista.replaceChildren(...reportes.map(crearReporte))
+
+  const grupos = new Map()
+  for (const reporte of reportes) {
+    const clave = claveDia(reporte.createdAt)
+    if (!grupos.has(clave)) grupos.set(clave, [])
+    grupos.get(clave).push(reporte)
+  }
+
+  const dias = []
+  for (const items of grupos.values()) {
+    const dia = document.createElement('div')
+    dia.className = 'ledger-day'
+
+    const etiqueta = document.createElement('h2')
+    etiqueta.className = 'day-label'
+    etiqueta.textContent = etiquetaDia(items[0].createdAt)
+
+    const cuenta = document.createElement('span')
+    cuenta.className = 'day-count'
+    cuenta.textContent = `· ${items.length}`
+    etiqueta.append(cuenta)
+
+    const filas = document.createElement('div')
+    filas.className = 'day-rows'
+    filas.append(...items.map(crearReporte))
+
+    dia.append(etiqueta, filas)
+    dias.push(dia)
+  }
+
+  ui.lista.replaceChildren(...dias)
   ui.vacio.hidden = reportes.length > 0
-  await actualizarCola()
+  await actualizarCola(reportes.length, reportes[0]?.createdAt)
 }
 
 /* ---------- Navegación ---------- */
 
-function mostrarVista(nombre) {
+function mostrarVista(nombre, { enfocar = true } = {}) {
   ui.vistaCaptura.hidden = nombre !== 'captura'
   ui.vistaReportes.hidden = nombre !== 'reportes'
 
-  $$('.tab').forEach((tab) => {
+  $$('.tab, .nav-tab').forEach((tab) => {
     const activo = tab.dataset.vista === nombre
     tab.classList.toggle('is-active', activo)
     if (activo) tab.setAttribute('aria-current', 'page')
     else tab.removeAttribute('aria-current')
   })
 
+  window.scrollTo({ top: 0, behavior: 'auto' })
+
+  const url = new URL(window.location.href)
+  if (nombre === 'reportes') url.searchParams.set('vista', 'reportes')
+  else url.searchParams.delete('vista')
+  window.history.replaceState(null, '', url)
+
+  if (enfocar) {
+    const titulo = nombre === 'reportes' ? $('#titulo-reportes') : $('#titulo-captura')
+    titulo.focus({ preventScroll: true })
+  }
+
   if (nombre === 'reportes') renderReportes()
 }
 
-$$('.tab').forEach((tab) => {
-  tab.addEventListener('click', () => mostrarVista(tab.dataset.vista))
+$$('[data-vista]').forEach((elemento) => {
+  elemento.addEventListener('click', (event) => {
+    if (elemento.tagName === 'A') event.preventDefault()
+    mostrarVista(elemento.dataset.vista)
+  })
 })
 
 /* ---------- Formulario ---------- */
 
 $('#descripcion').addEventListener('input', (event) => {
-  ui.contadorDescripcion.textContent = String(event.target.value.length)
+  ui.contadorDescripcion.textContent = `${event.target.value.length} / 4000`
 })
 
 function marcarInvalidos() {
   $$('input[required], textarea[required]', ui.form).forEach((campo) => {
     campo.setAttribute('aria-invalid', String(!campo.validity.valid))
   })
+}
+
+// localStorage puede fallar en modo privado o con la cuota llena: no debe
+// impedir que el reporte ya guardado en IndexedDB se envíe.
+function guardarTecnico(tecnico) {
+  try {
+    localStorage.setItem('tecnico', tecnico)
+  } catch {
+    /* preferencia opcional */
+  }
+}
+
+function leerTecnico() {
+  try {
+    return localStorage.getItem('tecnico')
+  } catch {
+    return null
+  }
 }
 
 ui.form.addEventListener('input', (event) => {
@@ -190,7 +353,8 @@ ui.form.addEventListener('submit', async (event) => {
   marcarInvalidos()
 
   if (!ui.form.reportValidity()) {
-    ui.formError.textContent = 'Revisa los campos marcados: cliente, servicio y diagnóstico son obligatorios.'
+    ui.formError.textContent =
+      'Revisa los campos marcados: técnico, cliente, servicio y diagnóstico son obligatorios.'
     ui.formError.hidden = false
     return
   }
@@ -219,26 +383,23 @@ ui.form.addEventListener('submit', async (event) => {
 
   try {
     await db.reportes.add(reporte)
-    localStorage.setItem('tecnico', tecnico)
+    guardarTecnico(tecnico)
 
     ui.form.reset()
-    ui.contadorDescripcion.textContent = '0'
+    ui.contadorDescripcion.textContent = '0 / 4000'
     $('#tecnico').value = tecnico
     reiniciarGps()
     mostrarVista('reportes')
 
     if (!navigator.onLine) {
-      aviso('Reporte guardado localmente. Se enviará al volver a tener red.')
+      aviso('Reporte guardado. Se enviará al reconectar.')
     } else {
-      aviso('Reporte guardado. Enviando al servidor…')
-      const { synced, failed } = await syncPending()
-      await renderReportes()
+      aviso('Reporte guardado. Enviando…')
+      const { synced } = await syncPending()
       aviso(
         synced
           ? 'Reporte sincronizado con el servidor.'
-          : failed
-            ? 'Guardado en el teléfono. No se pudo enviar todavía.'
-            : 'Guardado en el teléfono.'
+          : 'Guardado en el teléfono. Se enviará al reconectar.'
       )
     }
   } catch (error) {
@@ -257,6 +418,9 @@ function reiniciarGps() {
   ui.lat.value = ''
   ui.lng.value = ''
   ui.gpsEstado.textContent = 'Sin coordenadas'
+  ui.gpsEstado.classList.remove('is-ok')
+  ui.gpsMapa.hidden = true
+  ui.gpsMapa.href = '#'
 }
 
 ui.btnGps.addEventListener('click', () => {
@@ -267,6 +431,7 @@ ui.btnGps.addEventListener('click', () => {
 
   ui.btnGps.disabled = true
   ui.gpsEstado.textContent = 'Buscando señal…'
+  ui.gpsEstado.classList.remove('is-ok')
 
   navigator.geolocation.getCurrentPosition(
     ({ coords }) => {
@@ -275,6 +440,9 @@ ui.btnGps.addEventListener('click', () => {
       ui.gpsEstado.textContent = `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(
         5
       )} · ±${Math.round(coords.accuracy)} m`
+      ui.gpsEstado.classList.add('is-ok')
+      ui.gpsMapa.href = `https://www.google.com/maps?q=${coords.latitude},${coords.longitude}`
+      ui.gpsMapa.hidden = false
       ui.btnGps.disabled = false
     },
     (error) => {
@@ -309,7 +477,6 @@ async function sincronizar({ silencioso = false } = {}) {
     }
   } finally {
     sincronizando = false
-    ui.btnSync.disabled = false
     ui.btnSync.classList.remove('is-busy')
     await renderReportes()
   }
@@ -319,9 +486,8 @@ ui.btnSync.addEventListener('click', () => sincronizar())
 
 window.addEventListener('online', async () => {
   pintarRed()
-  aviso('Conexión recuperada. Sincronizando pendientes…')
+  aviso('Conexión recuperada. Enviando pendientes…')
   await sincronizar({ silencioso: true })
-  await actualizarCola()
 })
 
 window.addEventListener('offline', () => {
@@ -402,13 +568,13 @@ registerSW({
 async function iniciar() {
   pintarRed()
 
-  const tecnicoGuardado = localStorage.getItem('tecnico')
+  const tecnicoGuardado = leerTecnico()
   if (tecnicoGuardado) $('#tecnico').value = tecnicoGuardado
 
   await renderReportes()
 
   const vista = new URLSearchParams(window.location.search).get('vista')
-  if (vista === 'reportes') mostrarVista('reportes')
+  if (vista === 'reportes') mostrarVista('reportes', { enfocar: false })
 
   if (navigator.storage?.persist) {
     navigator.storage.persist().catch(() => {})
