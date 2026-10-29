@@ -515,6 +515,9 @@ function ocultarInstalacion() {
   ui.btnIos.hidden = true
 }
 
+// El preventDefault es intencional: la app muestra su propio botón y llama a
+// prompt() en el clic. Chromium avisa en consola que no mostrará su banner
+// nativo; es informativo, no un fallo de instalabilidad.
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault()
   deferredPrompt = event

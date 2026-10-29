@@ -9,6 +9,7 @@ Proyecto integrador UTM. El avance jornada por jornada está en [`docs/progreso.
 - [Arquitectura y matriz de decisión](docs/dia-01-arquitectura.md) · [PDF](docs/dia-01-arquitectura.pdf)
 - [Compatibilidad de navegadores y checklist de instalación](docs/dia-02-compatibilidad.md) · [PDF](docs/dia-02-compatibilidad.pdf)
 - [Guía de Ngrok, despliegue y verificación](docs/despliegue.md)
+- [Guion de defensa y demo en vivo](docs/defensa.md)
 - [Avance por etapas](docs/progreso.md)
 
 ## Estado
@@ -18,14 +19,27 @@ Proyecto integrador UTM. El avance jornada por jornada está en [`docs/progreso.
 | Entorno Docker (web + API + PostgreSQL) | Funcionando |
 | API REST idempotente | Funcionando y probada |
 | UI móvil (captura + listado) | Rediseñada y verificada |
-| Manifest + instalación (Android / iOS) | Implementado; capturas en dispositivo pendientes |
-| Service Worker (precache, SWR, offline.html) | Funcionando |
-| Guardado offline + sincronización automática/manual | Funcionando |
+| Manifest + instalación | Implementado; verificado en Android por Ngrok y en producción. iOS sin dispositivo físico |
+| Service Worker (precache, SWR, offline.html) | Funcionando en local y producción |
+| Guardado offline + sincronización automática/manual | Funcionando; instalación y offline se demuestran en vivo desde producción |
 | Lighthouse (PWA, rendimiento, a11y, buenas prácticas, SEO) | 100 / 100 / 100 / 100 / 100 |
 | Avance por etapas | Documentado en [`docs/progreso.md`](docs/progreso.md) |
 | Documento de arquitectura y tabla de compatibilidad | Completos, en Markdown y PDF |
 | Video del modo avión | [`docs/evidencias/demo-modo-avion.mp4`](docs/evidencias/demo-modo-avion.mp4) |
-| Despliegue en Neon + Render + Vercel | Pendiente (requiere cuentas) |
+| Despliegue en Neon + Render + Vercel | Funcionando con HTTPS y persistencia real |
+
+## Producción
+
+| Servicio | URL |
+| --- | --- |
+| App (Vercel) | <https://frontend-chi-coral-19.vercel.app/> |
+| API (Render) | <https://pagina-pwa.onrender.com> |
+| Salud de la API | <https://pagina-pwa.onrender.com/api/health> |
+| Reportes | <https://pagina-pwa.onrender.com/api/reportes> |
+| Lighthouse público | [`docs/evidencias/lighthouse-produccion.html`](docs/evidencias/lighthouse-produccion.html) |
+| Capturas de API e instalación | [`docs/evidencias/`](docs/evidencias/) |
+
+La base de datos vive en Neon. El frontend llama a Render mediante `VITE_API_URL` y Render solo acepta el origen de Vercel configurado en `CORS_ORIGIN`.
 
 ## Arranque rápido
 
@@ -107,6 +121,8 @@ Pagina_PWA/
 │   ├── dia-02-compatibilidad.md # tabla iOS/Chromium y checklist
 │   ├── dia-02-compatibilidad.pdf
 │   ├── despliegue.md            # Ngrok, Neon, Render y Vercel
+│   ├── defensa.md               # guion de demo y preguntas probables
+│   ├── pdf-style.css            # estilos compartidos de los PDF
 │   ├── progreso.md              # avance por jornada y evidencias
 │   └── evidencias/
 │       ├── demo-modo-avion.mp4
@@ -231,7 +247,9 @@ Para la evidencia en video, repite el flujo con dos reportes y muestra el `POST 
 npx lighthouse@11 http://localhost:5173 --only-categories=pwa,accessibility,best-practices,performance,seo --view
 ```
 
-Resultado actual en local: **PWA 100 · Accesibilidad 100 · Buenas prácticas 100 · Rendimiento 100 · SEO 100**.
+Resultado actual en local y en producción: **PWA 100 · Accesibilidad 100 · Buenas prácticas 100 · Rendimiento 100 · SEO 100**.
+
+El reporte de la URL pública está en [`docs/evidencias/lighthouse-produccion.html`](docs/evidencias/lighthouse-produccion.html), su JSON en [`docs/evidencias/lighthouse-produccion.json`](docs/evidencias/lighthouse-produccion.json) y la captura en [`docs/evidencias/lighthouse-produccion.png`](docs/evidencias/lighthouse-produccion.png).
 
 > Lighthouse 12 eliminó la categoría PWA. Para el requisito de la rúbrica hay que usar `lighthouse@11`. En la defensa conviene explicarlo: no es una limitación del proyecto, es un cambio de la herramienta.
 
@@ -246,6 +264,8 @@ Abre la URL `https://…ngrok-free.app` en el teléfono. No hace falta un segund
 - **Android/Chrome**: aparece el botón «Instalar app».
 - **iOS/Safari**: aparece «Cómo instalar», que explica Compartir → Agregar a inicio.
 
+El plan gratuito de Ngrok muestra una página **Visit Site** la primera vez. Púlsala y recarga una vez; si no, el manifest llega como HTML y Chrome no ofrece instalar.
+
 Si Vite responde `Blocked request`, revisa `server.allowedHosts` en `vite.config.js`.
 
 ## Despliegue
@@ -254,7 +274,7 @@ La guía completa, con verificación y problemas frecuentes, está en [`docs/des
 
 ### 1. Base de datos — Neon
 
-1. Crea un proyecto en <https://neon.tech> y copia la cadena con `?sslmode=require`.
+1. Crea un proyecto en <https://neon.tech> y copia la **Pooled connection** con `?sslmode=require`.
 2. Ejecuta `backend/sql/schema.sql` desde el editor SQL de Neon.
 
 ### 2. Backend — Render
@@ -262,20 +282,22 @@ La guía completa, con verificación y problemas frecuentes, está en [`docs/des
 | Ajuste | Valor |
 | --- | --- |
 | Tipo | Web Service · Docker |
-| Contexto | `backend` (si queda en la raíz, el Dockerfile no encuentra `package.json`) |
-| Dockerfile | `backend/Dockerfile` |
+| Root Directory | `backend` |
+| Dockerfile Path | `Dockerfile` |
+| Docker Build Context | `.` (relativo a `backend`) |
 | Health check | `/api/health` |
-| `DATABASE_URL` | cadena de Neon |
-| `CORS_ORIGIN` | `https://tu-app.vercel.app` |
+| `DATABASE_URL` | cadena Pooled de Neon |
+| `CORS_ORIGIN` | `https://frontend-chi-coral-19.vercel.app` |
 
 ### 3. Frontend — Vercel
 
 | Ajuste | Valor |
 | --- | --- |
+| Root Directory | `frontend` |
 | Framework | Vite |
 | Build | `npm run build` |
 | Output | `dist` |
-| `VITE_API_URL` | `https://tu-api.onrender.com` |
+| `VITE_API_URL` | `https://pagina-pwa.onrender.com` |
 
 `vercel.json` desactiva la caché de `/sw.js` y sirve el manifest con el tipo correcto. Sin eso, el navegador puede quedarse con una versión vieja del Service Worker.
 
@@ -285,6 +307,13 @@ La guía completa, con verificación y problemas frecuentes, está en [`docs/des
 - **Caché del Service Worker**: si cambias código y ves la versión anterior, DevTools → Application → Service Workers → Unregister, o recarga forzada.
 - **Puerto 5432 ocupado**: el contenedor publica PostgreSQL en `5433` para no chocar con otras instalaciones.
 - **`vite preview` no recarga en caliente**: es intencional, para que el entorno Docker se parezca a producción.
+
+### Avisos que no son errores
+
+- **`Banner not shown: beforeinstallpromptevent.preventDefault()`**: Chromium avisa que no mostrará su banner nativo porque la app lo intercepta para mostrar el botón **Instalar**. El `prompt()` se llama en el clic del usuario; la instalación funciona.
+- **`Content Security Policy blocks eval`**: Vercel no envía una cabecera CSP para este sitio y el bundle no usa `eval()` ni `new Function()`. El aviso suele venir de una extensión del navegador. Se comprueba en incógnito y con `curl -I https://frontend-chi-coral-19.vercel.app/`.
+
+El detalle y las respuestas para la defensa están en [`docs/defensa.md`](docs/defensa.md).
 
 ## Para repasar
 
@@ -310,10 +339,13 @@ La guía completa, con verificación y problemas frecuentes, está en [`docs/des
 - [x] Documento de arquitectura con la matriz de decisión ponderada.
 - [x] Tabla de compatibilidad y checklist de instalación en PDF.
 - [x] Video del modo avión con dos reportes.
-- [ ] Capturas con Ngrok en Android e iOS.
-- [ ] Instalación verificada en un teléfono real.
-- [ ] Despliegue en Neon + Render + Vercel y auditoría sobre la URL pública.
-- [ ] README con las URLs finales.
+- [x] Prueba funcional en Android real por Ngrok.
+- [x] Despliegue en Neon + Render + Vercel y auditoría sobre la URL pública.
+- [x] README con las URLs finales.
+- [ ] Captura de respaldo de la instalación en Android desde la URL de producción; la comprobación principal será en vivo.
+- [x] Limitación de iOS documentada: no hay iPhone disponible y no se inventan capturas ni resultados.
+- [ ] Persistencia tras un reinicio manual de Render.
+- [ ] Ensayo de la defensa con la demo de producción.
 
 El detalle de cada pendiente, con su día del plan y su evidencia, está en [`docs/progreso.md`](docs/progreso.md).
 

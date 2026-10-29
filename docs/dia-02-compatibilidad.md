@@ -34,7 +34,8 @@ El estado de cada prueba se reporta con tres valores:
 
 - **Implementado:** el código existe y cubre el caso.
 - **Verificado en escritorio:** se probó en Chromium y en las herramientas del navegador.
-- **Pendiente en dispositivo:** requiere un teléfono real y una URL HTTPS, que se cubre en el día 5 con Ngrok.
+- **Verificado en Android:** se probó en un teléfono real por HTTPS con Ngrok.
+- **No verificado en iOS:** el código y la guía existen, pero no hay iPhone disponible para una prueba física.
 
 ---
 
@@ -134,9 +135,9 @@ La ventaja de Chromium no cambia la arquitectura. La app usa el prompt nativo cu
 
 ## 6. Checklist de instalación
 
-Criterios mínimos para que la app sea instalable. El estado "verificado" se refiere a la comprobación local con Chromium y Lighthouse 11; la prueba en teléfono real se completa en el día 5.
+Criterios mínimos para que la app sea instalable. La comprobación local se hizo con Chromium y Lighthouse 11; la prueba en teléfono real se completó en Android por HTTPS con Ngrok. iOS queda implementado y documentado, pero no verificado físicamente por falta de dispositivo.
 
-- [x] Servida por HTTPS o `localhost`. En local se usa `http://localhost:5173`, que el navegador trata como contexto seguro. En producción, TLS de Vercel y Render. **Ngrok pendiente para el móvil.**
+- [x] Servida por HTTPS o `localhost`. En local se usa `http://localhost:5173`, que el navegador trata como contexto seguro. En producción, TLS de Vercel y Render. Ngrok verificado en Android.
 - [x] `manifest.webmanifest` enlazado con `<link rel="manifest">`. Verificado en `frontend/index.html`.
 - [x] `Content-Type: application/manifest+json`. Verificado con `curl -I` sobre el servidor de producción local.
 - [x] `name` y `short_name` presentes. "Reportes Técnicos de Campo" y "Reportes".
@@ -146,11 +147,11 @@ Criterios mínimos para que la app sea instalable. El estado "verificado" se ref
 - [x] Íconos de 192×192 y 512×512 en PNG, con propósitos `any` y `maskable`.
 - [x] Service Worker registrado con un handler `fetch` que responde offline.
 - [x] Navegación no cacheada devuelve `offline.html`.
-- [x] Lighthouse 11, categoría PWA: 100 en local.
+- [x] Lighthouse 11, categoría PWA: 100 en local y en la URL pública de Vercel.
 - [x] Metas de iOS: `apple-touch-icon`, `apple-mobile-web-app-capable` y `apple-mobile-web-app-title`.
 - [x] `safe-area-inset` en la navegación inferior para iPhone con indicador de inicio.
-- [ ] Instalación verificada en Chrome Android real. Requiere Ngrok.
-- [ ] Instalación verificada en Safari iOS real. Requiere Ngrok y un iPhone.
+- [x] Instalación verificada en Chrome Android real por Ngrok.
+- [ ] Instalación verificada en Safari iOS real: no hay dispositivo disponible. La compatibilidad está implementada y documentada, no probada físicamente.
 
 ---
 
@@ -158,13 +159,23 @@ Criterios mínimos para que la app sea instalable. El estado "verificado" se ref
 
 | Navegador | Versión | Qué se prueba | Resultado esperado | Estado |
 | --- | --- | --- | --- | --- |
-| Chrome escritorio | Reciente | Manifest, Service Worker, offline, cola, Lighthouse | Instala, guarda sin red, sincroniza, 100 en PWA | Verificado en local |
-| Chrome Android | Reciente | Prompt de instalación, offline, sincronización manual | Instala, guarda sin red y sincroniza al reconectar | Pendiente de dispositivo |
-| Safari iOS | 16.4+ | Agregar a inicio, offline, sincronización manual | Funciona tras instalar; sin prompt automático | Pendiente de dispositivo |
+| Chrome escritorio | Reciente | Manifest, Service Worker, offline, cola, Lighthouse | Instala, guarda sin red, sincroniza, 100 en PWA | Verificado en local y producción |
+| Chrome Android | Reciente | Prompt de instalación, offline, sincronización manual | Instala, guarda sin red y sincroniza al reconectar | Verificado en Android real por Ngrok |
+| Safari iOS | 16.4+ | Agregar a inicio, offline, sincronización manual | Funciona tras instalar; sin prompt automático | Implementado; no verificado por falta de iPhone |
 | Safari macOS | Reciente | Shell, IndexedDB y diseño | Misma captura y listado; sin prompt | No prioritario |
 | Edge escritorio | Reciente | Manifest y Service Worker | Sin diferencias frente a Chrome | No prioritario |
 
-La prueba en dispositivo real no cambia el código: confirma el comportamiento en el hardware y deja la captura con la URL HTTPS visible. Es el entregable del día 5.
+La prueba en Android real no cambió el código: confirmó el comportamiento en hardware, la URL HTTPS y la persistencia; dos reportes capturados desde el teléfono en producción aparecen en Neon. iOS no se puede marcar como verificado: el flujo alternativo está implementado, pero una prueba física requiere un iPhone.
+
+### Avisos que no son errores
+
+**“Banner not shown: beforeinstallpromptevent.preventDefault() called…”**
+
+Es un aviso informativo de Chromium. La app intercepta el evento para mostrar su propio botón **Instalar** y llama a `prompt()` cuando el usuario pulsa el botón. No es un fallo de instalabilidad y no se “arregla” permitiendo que el navegador muestre dos banners.
+
+**“Content Security Policy of your site blocks the use of eval…”**
+
+Vercel no envía una cabecera `Content-Security-Policy` para este sitio y el bundle de producción no contiene `eval()` ni `new Function()`. El aviso suele venir de una extensión del navegador o de una herramienta de auditoría. Para comprobarlo: abrir la app en una ventana de incógnito sin extensiones, revisar `curl -I https://frontend-chi-coral-19.vercel.app/` y buscar `eval(` en `frontend/dist`. No se debe añadir `unsafe-eval`.
 
 ---
 
@@ -190,14 +201,14 @@ La prueba en dispositivo real no cambia el código: confirma el comportamiento e
 6. Desactivar el modo avión y pulsar **Sincronizar**.
 7. Verificar el estado **Sincronizado**.
 
-La captura de evidencia debe incluir la URL con candado. Sin HTTPS visible, la prueba no demuestra que el Service Worker esté activo.
+La demostración en vivo debe mostrar la URL con candado. Las capturas de contenido no sustituyen esa comprobación: sin HTTPS visible no se demuestra que el Service Worker esté activo.
 
 ---
 
 ## 9. Preguntas de defensa
 
 **¿Por qué no usaron Background Sync?**  
-Porque Safari iOS no lo implementa. Habríamos tenido dos comportamientos: uno automático en Android y otro manual en iOS. Preferimos un solo flujo, con evento `online`, arranque y botón manual, que funciona en ambos.
+Porque Safari iOS no lo implementa. Habríamos tenido dos comportamientos: uno automático en Android y otro manual en iOS. Preferimos un solo flujo, con evento `online`, arranque y botón manual, disponible en ambos; Android está verificado y iOS no se probó físicamente.
 
 **¿Qué pasa si el usuario no instala la app?**  
 Puede usarla en Safari, pero queda expuesto a la purga de ITP y a la incomodidad de la barra del navegador. La app muestra la guía de instalación y recomienda sincronizar pronto. No prometemos una persistencia que el navegador no garantiza.
@@ -217,4 +228,4 @@ El UUID viaja desde el cliente y es la clave primaria. El servidor hace `ON CONF
 
 Chromium y WebKit comparten lo esencial: Service Worker, IndexedDB y GPS. Las diferencias que importan están en la instalación, la sincronización en segundo plano y la persistencia. La app no intenta ocultarlas con una capa común que finja paridad. Usa el prompt nativo donde existe, muestra una guía donde no, y ofrece sincronización manual en ambos casos.
 
-La compatibilidad se sostiene en tres decisiones: un `sw.js` clásico, una cola que no depende de Background Sync y una instalación guiada en iOS. La prueba en dispositivos reales es el siguiente paso, no una suposición.
+La compatibilidad se sostiene en tres decisiones: un `sw.js` clásico, una cola que no depende de Background Sync y una instalación guiada en iOS. Android quedó verificado en hardware; iOS queda implementado y documentado, pero no verificado físicamente por falta de dispositivo.

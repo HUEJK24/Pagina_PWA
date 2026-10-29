@@ -12,16 +12,16 @@ Registro de lo construido y lo que falta, jornada por jornada. El plan completo 
 | 2 | Compatibilidad e instalación | Completa | [Tabla, checklist y PDF](dia-02-compatibilidad.md) |
 | 3 | Entorno Docker y repositorio | Completa | Repo y `docker compose` funcionando |
 | 4 | API REST y base de datos | Completa | Pruebas con `curl` |
-| 5 | Ngrok y móvil real | Configuración lista | Token y capturas pendientes |
+| 5 | Ngrok y móvil real | Completa en Android; iOS sin dispositivo | HTTPS y app por Ngrok verificados |
 | 6 | UI móvil y formulario | Completa y rediseñada | Verificación en navegador |
-| 7 | Manifest e instalación | Casi completa | Prompt en DevTools; dispositivo pendiente |
+| 7 | Manifest e instalación | Implementada; Android verificado | Lighthouse PWA 100; iOS documentado como limitación |
 | 8 | Service Worker y offline | Completa | [Video del modo avión](evidencias/demo-modo-avion.mp4) |
 | 9 | Sincronización y modo avión | Completa | [Video del modo avión](evidencias/demo-modo-avion.mp4) |
-| 10 | Auditoría y despliegue | Auditoría local y guía | [Guía de despliegue](despliegue.md); nube pendiente |
+| 10 | Auditoría y despliegue | Completa | [Lighthouse público](evidencias/lighthouse-produccion.html); Neon + Render + Vercel |
 
-**Avance estimado:** 89 % (promedio simple de los diez días). Siete jornadas tienen la implementación cerrada (1, 2, 3, 4, 6, 8 y 9); el día 7 está al 90 % porque falta la instalación en un teléfono real; el día 5 está al 40 % y el día 10 al 60 % porque dependen de cuentas y dispositivos.
+**Avance estimado:** 95 %. Las diez jornadas están cerradas; los días 5 y 7 se validaron en Android real y la limitación de iOS quedó documentada, no simulada. El 5 % restante corresponde a la prueba física en un segundo motor (iOS), que no se puede hacer sin dispositivo.
 
-El núcleo técnico —offline, sincronización, idempotencia e instalabilidad— funciona y está verificado en local. Lo que resta es evidencia externa: Ngrok, capturas en Android/iOS y URL pública.
+El núcleo técnico —offline, sincronización, idempotencia, instalabilidad y despliegue— funciona y está verificado en Android y producción. Lo que resta es el ensayo de la defensa y la evidencia en vivo de Android.
 
 ## Entregables de la última sesión
 
@@ -32,7 +32,7 @@ El núcleo técnico —offline, sincronización, idempotencia e instalabilidad�
 - Matriz ponderada con totales recalculados y verificación aritmética: PWA 4.78, multiplataforma 3.78, nativa 2.80.
 - Argumento SOA frente a PWA: el cliente delgado colapsa sin red y la PWA conserva la API en el servidor.
 - Diagrama de componentes, contrato de la API, modelo de datos, riesgos, límites y trazabilidad.
-- Entregable en Markdown y PDF de 11 páginas.
+- Entregable en Markdown y PDF actualizado.
 
 ### Día 2: compatibilidad
 
@@ -40,7 +40,7 @@ El núcleo técnico —offline, sincronización, idempotencia e instalabilidad�
 - Explicación de las tres limitaciones críticas de iOS: purga por ITP, ausencia de `beforeinstallprompt` y ausencia de Background Sync.
 - Checklist de instalación con estado de cada criterio y matriz de pruebas por navegador.
 - Guion de verificación en Android e iOS y preguntas de defensa.
-- Entregable en Markdown y PDF de 7 páginas.
+- Entregable en Markdown y PDF actualizado.
 
 ### Video del modo avión
 
@@ -49,6 +49,20 @@ El núcleo técnico —offline, sincronización, idempotencia e instalabilidad�
 - Reconexión: el evento `online` sincroniza los dos reportes sin intervención.
 - Verificación final contra `GET /api/reportes`: total 2, dos UUID distintos, ningún duplicado.
 - Archivo: [`docs/evidencias/demo-modo-avion.mp4`](evidencias/demo-modo-avion.mp4). Póster: [`demo-modo-avion-poster.jpg`](evidencias/demo-modo-avion-poster.jpg).
+
+### Producción: Neon + Render + Vercel
+
+- Neon con el esquema aplicado y la tabla `reportes`.
+- API en Render: `https://pagina-pwa.onrender.com/api/health` responde `{"ok":true,"db":"up"}`.
+- Frontend en Vercel: `https://frontend-chi-coral-19.vercel.app/`.
+- CORS cerrado al dominio exacto de Vercel, sin barra final.
+- Tres reportes persistidos en Neon; dos capturados desde Android en producción y visibles en `/api/reportes`.
+- Reenvío del mismo UUID dos veces: respuestas 200 y total sin cambios en la prueba controlada (1); después se añadieron reportes reales.
+- Recarga de la app publicada sin red: el shell y el reporte siguen disponibles.
+- Manifest y Service Worker activos en producción.
+- Lighthouse 11 sobre la URL pública: PWA 100, accesibilidad 100, buenas prácticas 100, rendimiento 100 y SEO 100.
+
+Los detalles y las capturas están en [`despliegue.md`](despliegue.md) y en `docs/evidencias/`. El guion de la demo, los tiempos y las respuestas a los avisos de Chromium están en [`defensa.md`](defensa.md).
 
 ### Corrección del guardado
 
@@ -83,6 +97,12 @@ La corrección se probó con una página que fuerza `QuotaExceededError` en `loc
 | Idempotencia | Reenviar el mismo UUID responde 200 y no duplica |
 | `localStorage` bloqueado | El reporte se guarda y sincroniza igual |
 | Video del modo avión | 2 reportes offline → recarga → 2 sincronizados; API total 2 |
+| App publicada | `https://frontend-chi-coral-19.vercel.app/` responde 200 |
+| API publicada | `/api/health` responde `db: up` desde Render |
+| CORS producción | Preflight y `GET` con `Access-Control-Allow-Origin` de Vercel |
+| Persistencia producción | Tres reportes en Neon; dos capturados desde Android en producción |
+| Idempotencia producción | Mismo UUID dos veces: 200 y total sin cambios |
+| Lighthouse público | PWA 100 · Accesibilidad 100 · Buenas prácticas 100 · Rendimiento 100 · SEO 100 |
 
 ### Cómo se reproduce
 
@@ -103,7 +123,13 @@ Para la prueba offline: DevTools → Network → Offline, capturar un reporte, r
 | Arquitectura y matriz de decisión | `docs/dia-01-arquitectura.md` y `.pdf` |
 | Compatibilidad y checklist | `docs/dia-02-compatibilidad.md` y `.pdf` |
 | Video del modo avión | `docs/evidencias/demo-modo-avion.mp4` |
+| Ngrok: app pública | `docs/evidencias/ngrok-frontend.png`, `ngrok-frontend-mobile.png` |
+| Reporte sincronizado en producción | `docs/evidencias/produccion-reporte-sincronizado.png` |
+| API de producción | `docs/evidencias/produccion-api-health.png`; resumen sin datos personales en `produccion-api-reportes.png` |
+| Botón Instalar en producción | `docs/evidencias/produccion-instalar.png` |
+| Lighthouse público | `docs/evidencias/lighthouse-produccion.html`, `.json` y `.png` |
 | Guía de Ngrok y despliegue | `docs/despliegue.md` |
+| Guion de defensa y demo | `docs/defensa.md` |
 | API y esquema | `backend/src/routes/reportes.js`, `backend/sql/schema.sql` |
 | Entorno reproducible | `docker-compose.yml`, `Dockerfile` de cada servicio |
 | Offline y sincronización | `frontend/src/sw.js`, `sync.js`, `db.js` |
@@ -113,19 +139,19 @@ Para la prueba offline: DevTools → Network → Offline, capturar un reporte, r
 
 ## Pendientes inmediatos
 
-1. **Día 5:** autenticar Ngrok (`ngrok config add-authtoken …`), abrir la URL en Android e iOS y capturar HTTPS, instalación y estado offline. Guía: [`despliegue.md`](despliegue.md).
-2. **Día 7:** instalar la app en Chrome Android y agregarla a inicio en Safari iOS; guardar las capturas.
-3. **Día 10:** crear Neon, Render y Vercel, cargar variables y repetir Lighthouse sobre la URL pública. Guía: [`despliegue.md`](despliegue.md).
-4. Añadir las URLs finales al README y hacer el push.
+1. **Día 5/7, iOS:** descartada la prueba física por falta de dispositivo. La compatibilidad está implementada y la limitación documentada; no se presentarán capturas ni resultados inventados.
+2. **Cierre de evidencia:** la instalación, el modo avión y la sincronización en Android se mostrarán en vivo desde la URL de producción. Una captura de respaldo es opcional.
+3. **Persistencia:** reiniciar Render y comprobar que el reporte de Neon sigue disponible.
+4. **Defensa:** ensayar la demostración con la app de Vercel, la API de Render y la tabla de Neon. Guion en [`defensa.md`](defensa.md).
+5. **Push:** subir los cambios de documentación, capturas y reportes Lighthouse al repositorio, con autorización.
 
 ## Bloqueos y riesgos
 
-- **Ngrok:** el binario está instalado, pero sin token no se puede generar la URL HTTPS para los teléfonos.
-- **Cuentas en la nube:** Neon, Render y Vercel requieren credenciales del propietario del proyecto.
-- **iOS:** no existe `beforeinstallprompt` ni Background Sync. La sincronización depende de abrir la app, del evento `online` o del botón manual; instalar la PWA reduce el riesgo de purga de almacenamiento.
+- **iOS:** no hay iPhone físico. La app tiene el flujo de instalación y las limitaciones documentadas, pero no se puede afirmar una prueba en Safari iOS real sin hardware.
+- **Render gratuito:** el servicio se duerme por inactividad; la primera petición puede tardar. Para la defensa hay que despertarlo unos minutos antes.
 - **Datos sin sincronizar:** no hay respaldo. Si se borra el almacenamiento del navegador antes de enviar, el reporte se pierde.
 - **Service Worker:** tras un despliegue puede servirse la versión anterior hasta recargar; está documentado.
 
 ## Próximo hito
 
-Cerrar el día 5 y el día 7 con Ngrok y capturas reales. Después, desplegar en Neon, Render y Vercel, auditar la URL pública y actualizar el README con las URLs finales.
+Ensayar la defensa con la demo de producción, verificar la persistencia tras reiniciar Render y publicar la documentación. La ausencia de prueba física en iOS queda declarada como limitación; no se busca simularla.

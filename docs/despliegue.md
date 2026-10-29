@@ -1,6 +1,6 @@
 # Guía de despliegue y prueba móvil
 
-Esta guía cubre los dos pendientes externos del proyecto: la prueba HTTPS en teléfonos reales (día 5) y la puesta en producción con Neon, Render y Vercel (día 10). Nada de esto se ejecutó todavía: requiere una cuenta de Ngrok y acceso a los tres proveedores.
+Esta guía cubre la prueba HTTPS en teléfonos reales (día 5) y la puesta en producción con Neon, Render y Vercel (día 10). Ngrok y la producción ya se ejecutaron. La app está en <https://frontend-chi-coral-19.vercel.app/> y la API en <https://pagina-pwa.onrender.com>. La prueba física en iPhone se descartó por falta de dispositivo; la compatibilidad quedó implementada y la limitación documentada, sin capturas simuladas.
 
 Los valores entre `<...>` son marcadores. No escribas tokens ni cadenas de conexión en el repositorio.
 
@@ -71,18 +71,19 @@ Abre la URL en el teléfono, siempre con HTTPS y el candado visible.
 | --- | --- |
 | HTTPS | Barra de Safari o Chrome con candado y la URL `https://…ngrok-free.app`. |
 | Instalación Android | Botón **Instalar** o app abierta desde la pantalla de inicio. |
-| Instalación iOS | Diálogo **Instalar en iPhone o iPad** o app agregada a inicio. |
+| Instalación iOS | No aplica: sin dispositivo. No se fabrican capturas; se documenta la limitación. |
 | Estado offline | Franja **Trabajando sin conexión** y reporte pendiente. |
 | API | `GET /api/reportes` con el reporte capturado, abierto desde el teléfono o desde la computadora. |
 | Recarga sin red | La app abre y el reporte sigue en la lista. |
 
-Guarda las capturas en `docs/evidencias/` con nombres como `dia-05-android-https.png`, `dia-05-ios-instalar.png` y `dia-05-api-reporte.png`. No inventes capturas ni edites la barra de URL.
+Las capturas generadas están en `docs/evidencias/` (`ngrok-frontend*.png`, `produccion-api-*.png`, `produccion-instalar.png`). No inventes capturas ni edites la barra de URL; la prueba de Android se completa en vivo.
 
 ### 6. Problemas frecuentes
 
 | Síntoma | Causa probable | Solución |
 | --- | --- | --- |
 | `Blocked request` en Vite | Dominio de Ngrok no permitido | Agrega el dominio a `allowedHosts` y reconstruye. |
+| Ngrok muestra **Visit Site** y el manifest falla | Intersticial del plan gratuito; el manifest no envía la cookie de aceptación | Pulsa **Visit Site**, recarga la página una vez y verifica DevTools → Application → Manifest. |
 | La app carga, pero la API falla | El backend no está levantado | `docker compose ps` y `curl localhost:3000/api/health`. |
 | El navegador no ofrece instalar | Faltó una recarga o el manifest no cargó | Revisa DevTools → Application → Manifest. |
 | Safari no muestra prompt | Comportamiento normal de iOS | Usa Compartir → Agregar a inicio. |
@@ -101,7 +102,7 @@ Vercel (estáticos, HTTPS) ──VITE_API_URL──▶ Render (Express, HTTPS) �
 ### 1. Neon
 
 1. Crea un proyecto en <https://neon.tech>.
-2. Copia la cadena de conexión. Debe terminar en `?sslmode=require`.
+2. Copia la cadena de conexión. Para Render usa la **Pooled connection** (host con `-pooler`); para `psql` puedes usar la **Direct connection**. En ambos casos debe incluir `?sslmode=require`.
 3. Aplica el esquema:
 
 ```sh
@@ -123,8 +124,8 @@ No subas la cadena al repositorio. Render la guardará como variable de entorno.
 
 1. Crea un **Web Service** conectado al repositorio de GitHub.
 2. Selecciona **Docker** como entorno.
-3. Configura el **Docker Context Directory** como `backend`. Si el contexto queda en la raíz, el `COPY package*.json` del Dockerfile falla.
-4. Dockerfile: `backend/Dockerfile`.
+3. En **Advanced**, configura **Root Directory** como `backend`.
+4. Deja **Dockerfile Path** como `Dockerfile` y **Docker Build Context** como `.` (relativo a `backend`). Si no usas Root Directory, entonces usa Dockerfile Path `backend/Dockerfile` y contexto `backend`.
 5. Health check: `/api/health`.
 6. Variables de entorno:
 
@@ -176,7 +177,7 @@ Si usas dominios de preview de Vercel, agrégalos separados por coma. Después d
 | Persistencia | `POST /api/reportes` y luego `GET` | El reporte aparece y sobrevive a un reinicio de Render |
 | Idempotencia | Repetir el mismo UUID | `200`, sin una fila nueva |
 | PWA | DevTools → Application → Manifest y Service Workers | Sin errores; SW activo |
-| Instalación | Abrir la URL de Vercel en Android e iOS | Instala o guía según el sistema |
+| Instalación | Abrir la URL de Vercel en Android | Instala y abre en modo standalone; iOS solo queda documentado |
 | Offline | Modo avión, capturar, recargar, reconectar | Guarda, conserva y sincroniza |
 | Lighthouse | `npx lighthouse@11 https://<TU_APP>.vercel.app --only-categories=pwa,accessibility,best-practices,performance,seo` | PWA 100 y el resto sin regresiones |
 | HTTPS | Barra del navegador | Candado y URL `https://` |
@@ -193,19 +194,22 @@ Lighthouse 12 ya no incluye la categoría PWA. Usa la versión 11 para la eviden
 | `sw.js` viejo | Caché del navegador o del CDN | Revisa la cabecera `no-cache` y recarga forzada. |
 | Error de certificado en Neon | Cadena sin `sslmode=require` | Usa la cadena completa de Neon. |
 | El Dockerfile no encuentra `package.json` | Contexto de build en la raíz | Cambia el contexto a `backend`. |
+| Chromium avisa que no muestra el banner de instalación | La app intercepta `beforeinstallprompt` para usar su botón | Es informativo; el botón **Instalar** llama a `prompt()`. |
+| Aviso de CSP bloqueando `eval` | Extensión o herramienta del navegador; Vercel no envía CSP | Probar en incógnito y revisar que `dist` no contenga `eval(`. |
 
 ### 7. Checklist de cierre
 
-- [ ] Neon tiene la tabla `reportes` y los índices.
-- [ ] Render responde `/api/health` con `db: up`.
-- [ ] Vercel sirve la app con HTTPS y `VITE_API_URL` apunta a Render.
-- [ ] `CORS_ORIGIN` incluye el dominio de Vercel.
-- [ ] Un reporte capturado en producción sobrevive al reinicio de Render.
-- [ ] El mismo UUID no duplica filas.
-- [ ] Lighthouse 11 da 100 en PWA sobre la URL pública.
-- [ ] La app se instala en Android y se agrega a inicio en iOS.
-- [ ] El modo avión guarda, recarga y sincroniza en producción.
-- [ ] El README tiene las URLs finales y las capturas están en `docs/evidencias/`.
+- [x] Neon tiene la tabla `reportes` y los índices.
+- [x] Render responde `/api/health` con `db: up`.
+- [x] Vercel sirve la app con HTTPS y `VITE_API_URL` apunta a Render.
+- [x] `CORS_ORIGIN` incluye el dominio de Vercel.
+- [ ] Verificar que un reporte capturado en producción sobreviva a un reinicio manual de Render.
+- [x] El mismo UUID no duplica filas.
+- [x] Lighthouse 11 da 100 en PWA sobre la URL pública.
+- [x] La app se instala en Android; hay reportes de producción capturados desde el teléfono y persistidos en Neon. iOS queda documentado como limitación por falta de dispositivo.
+- [ ] Repetir el modo avión desde la URL de producción en Android; la comprobación principal será en vivo.
+- [x] El README tiene las URLs finales y las capturas están en `docs/evidencias/`.
+- [x] Capturas de `/api/health`, `/api/reportes` y del botón **Instalar** en producción.
 
 ---
 

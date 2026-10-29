@@ -134,7 +134,7 @@ La PWA no gana por el acceso al hardware, donde saca 3.5. Gana porque el criteri
 
 **Despliegue e instalación (20 %).** La PWA se publica con un `push` y se instala desde una URL. No hay revisión de tienda ni firma de binarios. La nativa exige cuenta de desarrollador, compilación por plataforma y un proceso de revisión que puede rechazar o retrasar una corrección.
 
-**Independencia de hardware (15 %).** Cualquier dispositivo con un navegador moderno puede abrir la app. La nativa se ata a su plataforma y la multiplataforma a su runtime. La PWA funciona en Android, iOS y escritorio con el mismo código.
+**Independencia de hardware (15 %).** Cualquier dispositivo con un navegador moderno puede abrir la app. La nativa se ata a su plataforma y la multiplataforma a su runtime. La PWA está diseñada para funcionar en Android, iOS y escritorio con el mismo código; Android se verificó en hardware y iOS queda documentado como compatibilidad no probada.
 
 **APIs del móvil (15 %).** Aquí la PWA pierde. GPS, cámara y almacenamiento están disponibles; Bluetooth, NFC, contactos y algunos sensores no. El proyecto solo necesita geolocalización, que funciona sobre HTTPS y con permiso del usuario. Reconocer esta limitación es parte de la decisión, no un detalle que se oculta.
 
@@ -297,11 +297,11 @@ En producción, el frontend usa `VITE_API_URL` para apuntar a Render. En local, 
 
 **Seguridad.** El Service Worker y la geolocalización exigen HTTPS fuera de `localhost`. La API limita CORS a los orígenes declarados en `CORS_ORIGIN`, valida el UUID y recorta los textos, usa consultas parametrizadas y limita el cuerpo JSON a 64 kB. Las credenciales viven en variables de entorno del servidor; el frontend no contiene secretos.
 
-**Rendimiento.** El build precachea 11 entradas, alrededor de 250 KiB, incluida la fuente IBM Plex Sans de 45 KiB. No hay runtime de framework. La auditoría local con Lighthouse 11 dio 100 en PWA, accesibilidad, buenas prácticas, rendimiento y SEO. Es una medición local; la pública se repetirá en el día 10.
+**Rendimiento.** El build precachea 11 entradas, alrededor de 250 KiB, incluida la fuente IBM Plex Sans de 45 KiB. No hay runtime de framework. Lighthouse 11 dio 100 en PWA, accesibilidad, buenas prácticas, rendimiento y SEO tanto en local como sobre la URL pública de Vercel. El reporte público está en `docs/evidencias/lighthouse-produccion.html`.
 
 **Disponibilidad.** El shell se sirve desde caché cuando no hay red. La API puede no estar disponible sin bloquear la captura: los reportes quedan en `pending`. En Render, el plan gratuito suspende el servicio por inactividad; el primer `POST` puede tardar en despertar. La cola reintenta y el usuario conserva el dato.
 
-**Accesibilidad.** Todas las etiquetas están asociadas a su campo, el foco cambia a la vista activa, los estados usan `aria-live` y los controles principales miden al menos 44 px. El contraste cumple AA. Lighthouse de accesibilidad dio 100 en local.
+**Accesibilidad.** Todas las etiquetas están asociadas a su campo, el foco cambia a la vista activa, los estados usan `aria-live` y los controles principales miden al menos 44 px. El contraste cumple AA. Lighthouse de accesibilidad dio 100 en local y en producción.
 
 **Mantenibilidad.** El frontend separa UI (`main.js`), persistencia (`db.js`) y sincronización (`sync.js`). El Service Worker es un archivo propio y legible. El backend tiene una ruta, una conexión y una migración. La deuda conocida está documentada: no hay autenticación, adjuntos ni resolución de conflictos.
 
@@ -328,7 +328,7 @@ En producción, el frontend usa `VITE_API_URL` para apuntar a Render. En local, 
 
 ## 10. Alcance y limitaciones
 
-**Incluido:** captura offline, listado local, GPS, instalación, sincronización idempotente, API REST, base de datos, entorno Docker y auditoría local.
+**Incluido:** captura offline, listado local, GPS, instalación, sincronización idempotente, API REST, base de datos, entorno Docker, auditoría local y auditoría pública.
 
 **Fuera de alcance:** autenticación y multiusuario, adjuntos o fotografías, notificaciones push, edición de reportes sincronizados, resolución de conflictos, paginación más allá de 500 filas, analítica y monitoreo centralizado.
 
@@ -348,7 +348,7 @@ Dos límites deben decirse sin adornos. Primero, la app no ofrece un respaldo de
 | PWA instalable | Manifest, íconos y prompt | `frontend/public/manifest.webmanifest`, `frontend/src/main.js` |
 | Offline | Service Worker y Dexie | `frontend/src/sw.js`, `frontend/src/db.js` |
 | Sincronización | Cola idempotente y evento `online` | `frontend/src/sync.js` |
-| Auditoría y despliegue | Lighthouse local y configuración de producción | `docs/progreso.md`, `.env.example` |
+| Auditoría y despliegue | Lighthouse público 100 y producción en Vercel + Render + Neon | `docs/evidencias/lighthouse-produccion.html`, `docs/despliegue.md` |
 
 ---
 
@@ -356,6 +356,6 @@ Dos límites deben decirse sin adornos. Primero, la app no ofrece un respaldo de
 
 La decisión no es "usar PWA porque está de moda". El requerimiento R1 elimina la web tradicional y el cliente SOA puro; R3 y R4 eliminan la nativa; la multiplataforma conserva el coste de dos ecosistemas y la distribución por tienda. La PWA cumple R1–R7 con una base de código y un despliegue por URL.
 
-El precio de esa elección es conocido: acceso parcial a las APIs del móvil y dependencia del ciclo de vida del navegador. El proyecto solo necesita GPS, y la sincronización se resuelve con el evento `online`, el arranque y un botón manual, que además funciona en iOS. La arquitectura no oculta esas limitaciones; las convierte en decisiones explícitas.
+El precio de esa elección es conocido: acceso parcial a las APIs del móvil y dependencia del ciclo de vida del navegador. El proyecto solo necesita GPS, y la sincronización se resuelve con el evento `online`, el arranque y un botón manual, un flujo que no depende de Background Sync y que está previsto para iOS. La arquitectura no oculta esas limitaciones; las convierte en decisiones explícitas.
 
 El reporte se guarda antes de tocar la red. Esa frase resume el diseño y la prueba que debe pasar el prototipo.
