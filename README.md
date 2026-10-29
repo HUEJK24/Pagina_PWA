@@ -2,7 +2,14 @@
 
 PWA para que técnicos de servicios registren reportes en zonas rurales **sin internet** y los sincronicen al recuperar la señal, desde Android o iOS, sin instalar nada desde una tienda.
 
-Proyecto integrador UTM. El PDF con la consigna y la rúbrica está en `Documentos/Proyecto Integrador.pdf` (esa carpeta no se publica).
+Proyecto integrador UTM. El avance jornada por jornada está en [`docs/progreso.md`](docs/progreso.md).
+
+## Documentación
+
+- [Arquitectura y matriz de decisión](docs/dia-01-arquitectura.md) · [PDF](docs/dia-01-arquitectura.pdf)
+- [Compatibilidad de navegadores y checklist de instalación](docs/dia-02-compatibilidad.md) · [PDF](docs/dia-02-compatibilidad.pdf)
+- [Guía de Ngrok, despliegue y verificación](docs/despliegue.md)
+- [Avance por etapas](docs/progreso.md)
 
 ## Estado
 
@@ -10,13 +17,15 @@ Proyecto integrador UTM. El PDF con la consigna y la rúbrica está en `Document
 | --- | --- |
 | Entorno Docker (web + API + PostgreSQL) | Funcionando |
 | API REST idempotente | Funcionando y probada |
-| UI móvil (captura + listado) | Funcionando |
-| Manifest + instalación (Android / iOS) | Funcionando |
+| UI móvil (captura + listado) | Rediseñada y verificada |
+| Manifest + instalación (Android / iOS) | Implementado; capturas en dispositivo pendientes |
 | Service Worker (precache, SWR, offline.html) | Funcionando |
 | Guardado offline + sincronización automática/manual | Funcionando |
 | Lighthouse (PWA, rendimiento, a11y, buenas prácticas, SEO) | 100 / 100 / 100 / 100 / 100 |
+| Avance por etapas | Documentado en [`docs/progreso.md`](docs/progreso.md) |
+| Documento de arquitectura y tabla de compatibilidad | Completos, en Markdown y PDF |
+| Video del modo avión | [`docs/evidencias/demo-modo-avion.mp4`](docs/evidencias/demo-modo-avion.mp4) |
 | Despliegue en Neon + Render + Vercel | Pendiente (requiere cuentas) |
-| Documento de arquitectura y tabla de compatibilidad | Pendiente (ver `Documentos/`) |
 
 ## Arranque rápido
 
@@ -38,6 +47,7 @@ La primera vez que abras la app, el Service Worker se instala y precarga el shel
 | Entorno | Docker + Compose | 29 / v5 | Un comando levanta todo y no ensucia la máquina |
 | Frontend | Vite | 7 | Build rápido, hashes automáticos, proxy `/api` en desarrollo |
 | UI | HTML5 + CSS3 + JS nativo | — | Sin framework: menos peso, más control y nada que defender de más |
+| Tipografía | IBM Plex Sans (autoalojada) | 5 | Una sola familia, OFL y precacheada: se ve igual sin red |
 | PWA | `vite-plugin-pwa` (`injectManifest`) | 2 | `sw.js` propio y legible, con precache inyectado por Vite |
 | Caché | Workbox | 7 | `precacheAndRoute`, `StaleWhileRevalidate`, `ExpirationPlugin` |
 | Offline | Dexie.js sobre IndexedDB | 4 | API cómoda para IndexedDB, índices y consultas |
@@ -69,7 +79,7 @@ La primera vez que abras la app, el Service Worker se instala y precarga el shel
 1. El técnico llena el formulario y pulsa **Guardar reporte**.
 2. Se genera un UUID con `crypto.randomUUID()` **en el cliente**.
 3. El reporte se escribe en IndexedDB con `syncStatus: 'pending'`. Esto nunca depende de la red.
-4. Si hay conexión, se intenta enviar de inmediato. Si no, la UI avisa: «Reporte guardado localmente. Se enviará al volver a tener red».
+4. Si hay conexión, se intenta enviar de inmediato. Si no, la UI avisa: «Reporte guardado. Se enviará al reconectar».
 5. Al volver la red (evento `online`), al abrir la app o al pulsar **Sincronizar**, se envían los `pending`.
 6. El servidor responde 201 (nuevo) o 200 (ya existía) y el registro local pasa a `synced`.
 
@@ -82,6 +92,8 @@ La primera vez que abras la app, el Service Worker se instala y precarga el shel
 - **`NetworkOnly` para `/api/`.** Cachear reportes produciría datos fantasma.
 - **`offline.html`** para rutas de navegación no cacheadas; `/` siempre cae al shell precacheado.
 - **iOS sin `beforeinstallprompt` ni Background Sync.** Se resuelve con modal de instalación guiado, botón manual y el evento `online`.
+- **Interfaz mobile-first.** Formulario de una columna, controles principales de 44 px o más, enlaces de al menos 24 px, `safe-area-inset` y estados de sincronización visibles en cada fila. Desde 900 px la navegación pasa a la cabecera.
+- **Tipografía autoalojada.** IBM Plex Sans viaja en el precache con su licencia OFL; la app no pide fuentes a terceros ni pierde su identidad sin red.
 
 ## Estructura
 
@@ -89,6 +101,16 @@ La primera vez que abras la app, el Service Worker se instala y precarga el shel
 Pagina_PWA/
 ├── docker-compose.yml          # web :5173, api :3000, db :5433
 ├── .env.example                # variables para producción (sin secretos)
+├── docs/
+│   ├── dia-01-arquitectura.md   # arquitectura, matriz y riesgos
+│   ├── dia-01-arquitectura.pdf
+│   ├── dia-02-compatibilidad.md # tabla iOS/Chromium y checklist
+│   ├── dia-02-compatibilidad.pdf
+│   ├── despliegue.md            # Ngrok, Neon, Render y Vercel
+│   ├── progreso.md              # avance por jornada y evidencias
+│   └── evidencias/
+│       ├── demo-modo-avion.mp4
+│       └── demo-modo-avion-poster.jpg
 ├── frontend/
 │   ├── Dockerfile              # build de producción + vite preview
 │   ├── index.html              # shell, manifest, meta iOS
@@ -98,6 +120,7 @@ Pagina_PWA/
 │   │   ├── manifest.webmanifest
 │   │   ├── offline.html
 │   │   ├── robots.txt
+│   │   ├── fonts/              # IBM Plex Sans + licencia OFL
 │   │   └── icons/              # 192, 512, maskable, apple-touch
 │   └── src/
 │       ├── main.js             # UI, formulario, GPS, instalación, sync
@@ -190,7 +213,7 @@ Copia `.env.example` como `.env` solo si necesitas cambiar los valores locales. 
 
 1. Abre <http://localhost:5173> y espera a que el navegador registre el Service Worker (DevTools → Application → Service Workers).
 2. DevTools → Network → **Offline**.
-3. La barra superior debe ponerse en rojo: «Trabajando sin conexión».
+3. La franja de estado debe mostrar el punto rojo y «Trabajando sin conexión».
 4. Captura un reporte. Aparece como **Pendiente de sincronizar** y el contador de la pestaña sube.
 5. Recarga la página: la app sigue abriendo (shell desde caché) y el reporte sigue ahí.
 6. Vuelve a **Online**. En segundos el reporte pasa a **Sincronizado**.
@@ -200,7 +223,7 @@ Copia `.env.example` como `.env` solo si necesitas cambiar los valores locales. 
 curl -s localhost:3000/api/reportes | python3 -m json.tool
 ```
 
-Para la evidencia en video, repite el flujo con dos reportes y muestra el `POST /api/reportes` en la pestaña Network al reconectar.
+Para la evidencia en video, repite el flujo con dos reportes y muestra el `POST /api/reportes` en la pestaña Network al reconectar. El recorrido grabado está en [`docs/evidencias/demo-modo-avion.mp4`](docs/evidencias/demo-modo-avion.mp4).
 
 ## Auditoría
 
@@ -227,6 +250,8 @@ Si Vite responde `Blocked request`, revisa `server.allowedHosts` en `vite.config
 
 ## Despliegue
 
+La guía completa, con verificación y problemas frecuentes, está en [`docs/despliegue.md`](docs/despliegue.md).
+
 ### 1. Base de datos — Neon
 
 1. Crea un proyecto en <https://neon.tech> y copia la cadena con `?sslmode=require`.
@@ -237,6 +262,7 @@ Si Vite responde `Blocked request`, revisa `server.allowedHosts` en `vite.config
 | Ajuste | Valor |
 | --- | --- |
 | Tipo | Web Service · Docker |
+| Contexto | `backend` (si queda en la raíz, el Dockerfile no encuentra `package.json`) |
 | Dockerfile | `backend/Dockerfile` |
 | Health check | `/api/health` |
 | `DATABASE_URL` | cadena de Neon |
@@ -281,12 +307,15 @@ Si Vite responde `Blocked request`, revisa `server.allowedHosts` en `vite.config
 
 ## Pendientes del proyecto
 
-- [ ] Documento de arquitectura con la matriz de decisión corregida (`Documentos/skills and plugins/skills/pwa-servicios-tecnicos/references/`).
-- [ ] Tabla de compatibilidad y checklist de instalación en PDF.
+- [x] Documento de arquitectura con la matriz de decisión ponderada.
+- [x] Tabla de compatibilidad y checklist de instalación en PDF.
+- [x] Video del modo avión con dos reportes.
 - [ ] Capturas con Ngrok en Android e iOS.
-- [ ] Video del modo avión.
+- [ ] Instalación verificada en un teléfono real.
 - [ ] Despliegue en Neon + Render + Vercel y auditoría sobre la URL pública.
 - [ ] README con las URLs finales.
+
+El detalle de cada pendiente, con su día del plan y su evidencia, está en [`docs/progreso.md`](docs/progreso.md).
 
 ## Licencia
 
