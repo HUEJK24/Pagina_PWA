@@ -1,21 +1,292 @@
-# Pagina_PWA
+# Reportes Técnicos de Campo — PWA
 
-Aplicación web progresiva (PWA).
+PWA para que técnicos de servicios registren reportes en zonas rurales **sin internet** y los sincronicen al recuperar la señal, desde Android o iOS, sin instalar nada desde una tienda.
 
-## Estado del proyecto
+Proyecto integrador UTM. El PDF con la consigna y la rúbrica está en `Documentos/Proyecto Integrador.pdf` (esa carpeta no se publica).
 
-En desarrollo. Por ahora el repositorio contiene únicamente la estructura inicial.
+## Estado
 
-## Puesta en marcha
+| Pieza | Estado |
+| --- | --- |
+| Entorno Docker (web + API + PostgreSQL) | Funcionando |
+| API REST idempotente | Funcionando y probada |
+| UI móvil (captura + listado) | Funcionando |
+| Manifest + instalación (Android / iOS) | Funcionando |
+| Service Worker (precache, SWR, offline.html) | Funcionando |
+| Guardado offline + sincronización automática/manual | Funcionando |
+| Lighthouse (PWA, rendimiento, a11y, buenas prácticas, SEO) | 100 / 100 / 100 / 100 / 100 |
+| Despliegue en Neon + Render + Vercel | Pendiente (requiere cuentas) |
+| Documento de arquitectura y tabla de compatibilidad | Pendiente (ver `Documentos/`) |
 
-> Pendiente: se completará cuando se añada el código de la aplicación.
+## Arranque rápido
+
+```sh
+docker compose up --build -d          # web, API y base de datos
+docker compose exec backend npm run migrate
+```
+
+- App: <http://localhost:5173>
+- API: <http://localhost:3000/api/health>
+- PostgreSQL: `localhost:5433` (usuario `pwa`, contraseña `pwa`, base `reportes`)
+
+La primera vez que abras la app, el Service Worker se instala y precarga el shell. A partir de ahí puedes activar el modo avión y seguir trabajando.
+
+## Stack
+
+| Capa | Herramienta | Versión | Por qué |
+| --- | --- | --- | --- |
+| Entorno | Docker + Compose | 29 / v5 | Un comando levanta todo y no ensucia la máquina |
+| Frontend | Vite | 7 | Build rápido, hashes automáticos, proxy `/api` en desarrollo |
+| UI | HTML5 + CSS3 + JS nativo | — | Sin framework: menos peso, más control y nada que defender de más |
+| PWA | `vite-plugin-pwa` (`injectManifest`) | 2 | `sw.js` propio y legible, con precache inyectado por Vite |
+| Caché | Workbox | 7 | `precacheAndRoute`, `StaleWhileRevalidate`, `ExpirationPlugin` |
+| Offline | Dexie.js sobre IndexedDB | 4 | API cómoda para IndexedDB, índices y consultas |
+| Backend | Node + Express | 20 / 5 | API mínima, sin capas innecesarias |
+| Datos | PostgreSQL | 16 Alpine | Integridad, `ON CONFLICT` para idempotencia |
+| Driver | `pg` | 8 | Pool de conexiones y consultas parametrizadas |
+| Producción | Neon + Render + Vercel | — | Capa gratuita real, HTTPS automático |
+| Túneles | Ngrok | 3 | HTTPS para probar en teléfonos reales |
+
+## Cómo funciona
+
+```text
+┌──────────────────────────── teléfono ────────────────────────────┐
+│  UI (HTML/CSS/JS)                                                │
+│      │ guardar                                                   │
+│      ▼                                                           │
+│  IndexedDB (Dexie)  ── pending ──▶  syncPending()  ──POST──▶ API │
+│      ▲                                   │                       │
+│      └──────────── synced ◀──────────────┘                       │
+│                                                                  │
+│  Service Worker: shell precacheado + SWR para estáticos          │
+└──────────────────────────────────────────────────────────────────┘
+                                   │
+                          PostgreSQL / Neon
+```
+
+### Flujo de un reporte
+
+1. El técnico llena el formulario y pulsa **Guardar reporte**.
+2. Se genera un UUID con `crypto.randomUUID()` **en el cliente**.
+3. El reporte se escribe en IndexedDB con `syncStatus: 'pending'`. Esto nunca depende de la red.
+4. Si hay conexión, se intenta enviar de inmediato. Si no, la UI avisa: «Reporte guardado localmente. Se enviará al volver a tener red».
+5. Al volver la red (evento `online`), al abrir la app o al pulsar **Sincronizar**, se envían los `pending`.
+6. El servidor responde 201 (nuevo) o 200 (ya existía) y el registro local pasa a `synced`.
+
+### Decisiones que sostienen la rúbrica
+
+- **Offline-first, no offline tolerante.** La red es un acelerador; el guardado ocurre en el dispositivo.
+- **UUID en el cliente + `ON CONFLICT (id) DO UPDATE`.** Reintentar cinco veces no duplica: la clave primaria es el mismo UUID.
+- **`injectManifest`.** El `sw.js` es código propio con `install`, `activate` y `fetch` visibles; Vite solo inyecta los hashes.
+- **Stale-While-Revalidate** para CSS, JS, imágenes y fuentes: responde desde caché y actualiza en segundo plano.
+- **`NetworkOnly` para `/api/`.** Cachear reportes produciría datos fantasma.
+- **`offline.html`** para rutas de navegación no cacheadas; `/` siempre cae al shell precacheado.
+- **iOS sin `beforeinstallprompt` ni Background Sync.** Se resuelve con modal de instalación guiado, botón manual y el evento `online`.
 
 ## Estructura
 
-| Ruta | Descripción |
+```text
+Pagina_PWA/
+├── docker-compose.yml          # web :5173, api :3000, db :5433
+├── .env.example                # variables para producción (sin secretos)
+├── frontend/
+│   ├── Dockerfile              # build de producción + vite preview
+│   ├── index.html              # shell, manifest, meta iOS
+│   ├── vite.config.js          # injectManifest, proxy /api, hosts de Ngrok
+│   ├── scripts/generate-icons.py
+│   ├── public/
+│   │   ├── manifest.webmanifest
+│   │   ├── offline.html
+│   │   ├── robots.txt
+│   │   └── icons/              # 192, 512, maskable, apple-touch
+│   └── src/
+│       ├── main.js             # UI, formulario, GPS, instalación, sync
+│       ├── db.js               # Dexie (ReportesDB)
+│       ├── sync.js             # cola idempotente + guardia de concurrencia
+│       ├── sw.js               # install / activate / fetch
+│       └── styles.css
+└── backend/
+    ├── Dockerfile
+    ├── sql/schema.sql
+    └── src/
+        ├── server.js           # Express, CORS, health, errores
+        ├── db.js               # pool de pg + SSL para Neon
+        ├── migrate.js          # aplica el esquema (idempotente)
+        └── routes/reportes.js  # GET y POST idempotente
+```
+
+## API
+
+Base local: `http://localhost:3000`. En la app se consume por `/api` (proxy de Vite), así un solo túnel de Ngrok cubre frontend y backend.
+
+### `GET /api/health`
+
+```sh
+curl -s localhost:3000/api/health
+# {"ok":true,"db":"up","hora":"..."}
+```
+
+### `GET /api/reportes`
+
+Devuelve los últimos 500, más recientes primero.
+
+```sh
+curl -s localhost:3000/api/reportes
+# {"total":2,"reportes":[{...},{...}]}
+```
+
+### `POST /api/reportes`
+
+Cuerpo mínimo: `id` (UUID), `cliente`, `servicio`, `descripcion`.
+
+```sh
+curl -s -X POST localhost:3000/api/reportes \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "id": "3f2b8c1e-9d4a-4f7b-8c2e-1a5d6e7f8a9b",
+    "tecnico": "Luis",
+    "cliente": "Rancho El Sol",
+    "servicio": "Internet y redes",
+    "descripcion": "Cambio de antena",
+    "ubicacion": "Km 4",
+    "lat": 20.12345,
+    "lng": -98.76543
+  }'
+```
+
+- `201` si el reporte es nuevo (`insertado: true`).
+- `200` si ya existía: actualiza campos, conserva `fecha_creacion` y no crea otra fila (`insertado: false`).
+- `400` si falta el UUID o algún campo obligatorio.
+
+## Variables de entorno
+
+| Variable | Dónde | Para qué |
+| --- | --- | --- |
+| `DATABASE_URL` | backend | Cadena de PostgreSQL. En Neon incluye `?sslmode=require` |
+| `PORT` | backend | Puerto de escucha (3000 por defecto) |
+| `CORS_ORIGIN` | backend | Dominios permitidos, separados por coma |
+| `API_PROXY_TARGET` | frontend (contenedor) | A dónde manda `/api` Vite. Por defecto `http://backend:3000` |
+| `VITE_API_URL` | frontend (build) | URL pública de la API. Vacío en local (mismo origen) |
+
+Copia `.env.example` como `.env` solo si necesitas cambiar los valores locales. Nunca subas `.env`.
+
+## Comandos
+
+| Comando | Qué hace |
 | --- | --- |
-| `README.md` | Este archivo |
-| `.gitignore` | Archivos y carpetas excluidos del repositorio |
+| `docker compose up --build -d` | Levanta o reconstruye los tres servicios |
+| `docker compose logs -f frontend` | Logs del servidor web |
+| `docker compose exec backend npm run migrate` | Crea tablas e índices |
+| `docker compose exec db psql -U pwa -d reportes -c '\d reportes'` | Inspecciona la tabla |
+| `docker compose down` | Detiene los contenedores (conserva datos) |
+| `docker compose down -v` | Detiene y borra la base local |
+| `cd frontend && npm run dev` | Desarrollo con HMR en el host (sin Service Worker) |
+| `cd frontend && npm run build` | Build de producción con precache |
+| `python3 frontend/scripts/generate-icons.py` | Regenera los íconos |
+
+> El contenedor del frontend sirve el **build de producción** con `vite preview`, para que el Service Worker se comporte igual que en la nube. Si quieres editar con recarga en caliente, para el contenedor y usa `npm run dev` en `frontend/`.
+
+## Prueba de modo avión
+
+1. Abre <http://localhost:5173> y espera a que el navegador registre el Service Worker (DevTools → Application → Service Workers).
+2. DevTools → Network → **Offline**.
+3. La barra superior debe ponerse en rojo: «Trabajando sin conexión».
+4. Captura un reporte. Aparece como **Pendiente de sincronizar** y el contador de la pestaña sube.
+5. Recarga la página: la app sigue abriendo (shell desde caché) y el reporte sigue ahí.
+6. Vuelve a **Online**. En segundos el reporte pasa a **Sincronizado**.
+7. Compruébalo en la base:
+
+```sh
+curl -s localhost:3000/api/reportes | python3 -m json.tool
+```
+
+Para la evidencia en video, repite el flujo con dos reportes y muestra el `POST /api/reportes` en la pestaña Network al reconectar.
+
+## Auditoría
+
+```sh
+npx lighthouse@11 http://localhost:5173 --only-categories=pwa,accessibility,best-practices,performance,seo --view
+```
+
+Resultado actual en local: **PWA 100 · Accesibilidad 100 · Buenas prácticas 100 · Rendimiento 100 · SEO 100**.
+
+> Lighthouse 12 eliminó la categoría PWA. Para el requisito de la rúbrica hay que usar `lighthouse@11`. En la defensa conviene explicarlo: no es una limitación del proyecto, es un cambio de la herramienta.
+
+## Pruebas en móvil real (Ngrok)
+
+```sh
+ngrok http 5173
+```
+
+Abre la URL `https://…ngrok-free.app` en el teléfono. No hace falta un segundo túnel: la API viaja por `/api` gracias al proxy.
+
+- **Android/Chrome**: aparece el botón «Instalar app».
+- **iOS/Safari**: aparece «Cómo instalar», que explica Compartir → Agregar a inicio.
+
+Si Vite responde `Blocked request`, revisa `server.allowedHosts` en `vite.config.js`.
+
+## Despliegue
+
+### 1. Base de datos — Neon
+
+1. Crea un proyecto en <https://neon.tech> y copia la cadena con `?sslmode=require`.
+2. Ejecuta `backend/sql/schema.sql` desde el editor SQL de Neon.
+
+### 2. Backend — Render
+
+| Ajuste | Valor |
+| --- | --- |
+| Tipo | Web Service · Docker |
+| Dockerfile | `backend/Dockerfile` |
+| Health check | `/api/health` |
+| `DATABASE_URL` | cadena de Neon |
+| `CORS_ORIGIN` | `https://tu-app.vercel.app` |
+
+### 3. Frontend — Vercel
+
+| Ajuste | Valor |
+| --- | --- |
+| Framework | Vite |
+| Build | `npm run build` |
+| Output | `dist` |
+| `VITE_API_URL` | `https://tu-api.onrender.com` |
+
+`vercel.json` desactiva la caché de `/sw.js` y sirve el manifest con el tipo correcto. Sin eso, el navegador puede quedarse con una versión vieja del Service Worker.
+
+## Limitaciones conocidas
+
+- **iOS/Safari**: no hay `beforeinstallprompt` ni Background Sync. La sincronización depende de abrir la app, recuperar red o pulsar el botón. Safari puede purgar el almacenamiento de sitios sin interacción; instalar la PWA lo mitiga.
+- **Caché del Service Worker**: si cambias código y ves la versión anterior, DevTools → Application → Service Workers → Unregister, o recarga forzada.
+- **Puerto 5432 ocupado**: el contenedor publica PostgreSQL en `5433` para no chocar con otras instalaciones.
+- **`vite preview` no recarga en caliente**: es intencional, para que el entorno Docker se parezca a producción.
+
+## Para repasar
+
+| Concepto | En una línea |
+| --- | --- |
+| PWA | Web app instalable que usa manifest, Service Worker y HTTPS para comportarse como app. |
+| Web App Manifest | JSON que define nombre, íconos, colores y modo `standalone`. |
+| Service Worker | Proxy programable entre la app y la red; intercepta `fetch` y sirve desde caché. |
+| Ciclo de vida | `install` precarga, `activate` limpia cachés viejas, `fetch` decide la estrategia. |
+| Precaching | Guardar los assets del build antes de necesitarlos (con hashes de Vite). |
+| Stale-While-Revalidate | Responde de caché al instante y actualiza en segundo plano. |
+| IndexedDB | Base de datos del navegador, asíncrona, con cuota mucho mayor que LocalStorage. |
+| Dexie | Capa fina sobre IndexedDB con índices y consultas legibles. |
+| Idempotencia | Repetir la misma petición produce el mismo estado, no duplicados. |
+| UUID | Identificador único generado en el cliente; permite reintentos seguros. |
+| ITP | Política de Safari que limita el almacenamiento de sitios sin interacción. |
+| `beforeinstallprompt` | Evento de Chromium para mostrar el prompt de instalación; no existe en iOS. |
+| Background Sync | API de Chromium para reintentar en segundo plano; no existe en iOS. |
+| Lighthouse | Auditoría de rendimiento, accesibilidad, SEO y (hasta v11) PWA. |
+
+## Pendientes del proyecto
+
+- [ ] Documento de arquitectura con la matriz de decisión corregida (`Documentos/skills and plugins/skills/pwa-servicios-tecnicos/references/`).
+- [ ] Tabla de compatibilidad y checklist de instalación en PDF.
+- [ ] Capturas con Ngrok en Android e iOS.
+- [ ] Video del modo avión.
+- [ ] Despliegue en Neon + Render + Vercel y auditoría sobre la URL pública.
+- [ ] README con las URLs finales.
 
 ## Licencia
 

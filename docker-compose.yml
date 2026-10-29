@@ -1,0 +1,61 @@
+name: pwa-reportes
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pwa-reportes-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pwa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pwa}
+      POSTGRES_DB: ${POSTGRES_DB:-reportes}
+    ports:
+      # 5433 en el host: evita chocar con otros PostgreSQL locales
+      - '5433:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-pwa} -d ${POSTGRES_DB:-reportes}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: pwa-reportes-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-pwa}:${POSTGRES_PASSWORD:-pwa}@db:5432/${POSTGRES_DB:-reportes}
+      PORT: 3000
+      CORS_ORIGIN: http://localhost:5173,http://127.0.0.1:5173
+    ports:
+      - '3000:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    build: ./frontend
+    container_name: pwa-reportes-web
+    restart: unless-stopped
+    environment:
+      API_PROXY_TARGET: http://backend:3000
+    ports:
+      - '5173:5173'
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

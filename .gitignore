@@ -22,6 +22,9 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-error.log*
 
+# Herramientas de agente
+.playwright-mcp/
+
 # Contenido de IA (no se publica)
 Documentos/
 opencode.json

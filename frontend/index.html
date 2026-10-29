@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Reportes de campo · Servicios técnicos</title>
+    <meta
+      name="description"
+      content="Registro de reportes técnicos en campo, con funcionamiento sin conexión."
+    />
+    <meta name="theme-color" content="#14191b" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Reportes" />
+    <meta name="format-detection" content="telephone=no" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Saltar al contenido</a>
+
+    <div class="top">
+      <header class="app-header">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">RT</span>
+          <div class="brand-text">
+            <p class="brand-kicker">Servicios técnicos</p>
+            <h1>Reportes de campo</h1>
+          </div>
+        </div>
+        <button id="btn-instalar" class="btn btn-ghost" type="button" hidden>
+          Instalar app
+        </button>
+        <button id="btn-ios" class="btn btn-ghost" type="button" hidden>
+          Cómo instalar
+        </button>
+      </header>
+
+      <div id="estado-red" class="netbar" role="status" aria-live="polite">
+        <span class="netbar-dot" aria-hidden="true"></span>
+        <span id="estado-texto">Conectado a Internet</span>
+        <span id="estado-cola" class="netbar-meta"></span>
+      </div>
+    </div>
+
+    <main id="main" class="main">
+      <section id="vista-captura" class="vista" aria-labelledby="titulo-captura">
+        <div class="section-head">
+          <h2 id="titulo-captura">Nuevo reporte</h2>
+          <p class="section-note">Se guarda en el teléfono primero. La red es opcional.</p>
+        </div>
+
+        <form id="form-reporte" class="form" novalidate>
+          <div class="card form-card">
+            <div class="grid-2">
+              <div class="field">
+                <label for="tecnico">Técnico</label>
+                <input
+                  id="tecnico"
+                  name="tecnico"
+                  type="text"
+                  autocomplete="name"
+                  maxlength="160"
+                  required
+                  placeholder="Nombre de quien reporta"
+                />
+              </div>
+
+              <div class="field">
+                <label for="cliente">Cliente</label>
+                <input
+                  id="cliente"
+                  name="cliente"
+                  type="text"
+                  autocomplete="organization"
+                  maxlength="160"
+                  required
+                  placeholder="Rancho, casa o negocio"
+                />
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="servicio">Servicio</label>
+              <input
+                id="servicio"
+                name="servicio"
+                type="text"
+                list="servicios"
+                maxlength="160"
+                required
+                placeholder="Internet, electricidad, refrigeración…"
+              />
+              <datalist id="servicios">
+                <option value="Internet y redes"></option>
+                <option value="Electricidad"></option>
+                <option value="Refrigeración y clima"></option>
+                <option value="Plomería"></option>
+                <option value="Mantenimiento general"></option>
+              </datalist>
+            </div>
+
+            <div class="field">
+              <label for="descripcion">Diagnóstico y solución</label>
+              <textarea
+                id="descripcion"
+                name="descripcion"
+                rows="4"
+                maxlength="4000"
+                required
+                placeholder="Qué encontró, qué hizo y qué queda pendiente"
+              ></textarea>
+              <p class="hint"><span id="contador-descripcion">0</span> / 4000 caracteres</p>
+            </div>
+          </div>
+
+          <div class="card form-card">
+            <div class="field">
+              <label for="ubicacion">Ubicación</label>
+              <input
+                id="ubicacion"
+                name="ubicacion"
+                type="text"
+                maxlength="300"
+                placeholder="Calle, kilómetro, referencia"
+              />
+            </div>
+
+            <div class="gps-row">
+              <button id="btn-gps" class="btn btn-secondary" type="button">
+                Usar mi ubicación GPS
+              </button>
+              <p id="gps-estado" class="gps-estado">Sin coordenadas</p>
+            </div>
+
+            <input id="lat" name="lat" type="hidden" />
+            <input id="lng" name="lng" type="hidden" />
+          </div>
+
+          <p id="form-error" class="form-error" role="alert" hidden></p>
+
+          <button class="btn btn-primary btn-block" type="submit" id="btn-guardar">
+            Guardar reporte
+          </button>
+        </form>
+      </section>
+
+      <section id="vista-reportes" class="vista" aria-labelledby="titulo-reportes" hidden>
+        <div class="section-head section-head-row">
+          <div>
+            <h2 id="titulo-reportes">Reportes</h2>
+            <p class="section-note">Guardados en este dispositivo.</p>
+          </div>
+          <button id="btn-sincronizar" class="btn btn-secondary btn-small" type="button">
+            Sincronizar
+          </button>
+        </div>
+
+        <div id="lista-reportes" class="lista"></div>
+
+        <div id="lista-vacia" class="empty" hidden>
+          <p class="empty-title">Todavía no hay reportes</p>
+          <p class="empty-text">Captura el primero desde la pestaña <strong>Capturar</strong>.</p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar" aria-label="Navegación principal">
+      <button class="tab is-active" type="button" data-vista="captura" aria-current="page">
+        <span class="tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M12 5v14M5 12h14" stroke-linecap="round" />
+          </svg>
+        </span>
+        Capturar
+      </button>
+      <button class="tab" type="button" data-vista="reportes">
+        <span class="tab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M7 4h10a2 2 0 0 1 2 2v14l-7-4-7 4V6a2 2 0 0 1 2-2Z" stroke-linejoin="round" />
+          </svg>
+        </span>
+        Reportes
+        <span id="contador" class="tab-badge" hidden>0</span>
+      </button>
+    </nav>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <dialog id="dialogo-ios" class="dialog">
+      <h2>Instalar en iPhone o iPad</h2>
+      <ol>
+        <li>Toca el botón <strong>Compartir</strong> de Safari.</li>
+        <li>Elige <strong>Agregar a inicio</strong>.</li>
+        <li>Confirma con <strong>Agregar</strong>.</li>
+      </ol>
+      <p class="dialog-note">
+        Instalada, la app conserva mejor sus datos y abre sin la barra del navegador.
+      </p>
+      <form method="dialog">
+        <button class="btn btn-primary btn-block" type="submit">Entendido</button>
+      </form>
+    </dialog>
+
+    <noscript>
+      <p class="noscript">
+        Esta aplicación necesita JavaScript para guardar los reportes en el dispositivo.
+      </p>
+    </noscript>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "name": "pwa-reportes-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PWA offline-first para el registro de reportes de servicios técnicos en campo",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 5173"
+  },
+  "dependencies": {
+    "dexie": "^4.4.7"
+  },
+  "devDependencies": {
+    "vite": "^7.3.7",
+    "vite-plugin-pwa": "^2.0.0",
+    "workbox-expiration": "^7.4.1",
+    "workbox-precaching": "^7.4.1",
+    "workbox-routing": "^7.4.1",
+    "workbox-strategies": "^7.4.1"
+  }
+}

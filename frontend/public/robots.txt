@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+# Aplicación de uso interno para técnicos de campo.
+# No indexar formularios ni rutas de la app.
+Disallow: /api/
