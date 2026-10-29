@@ -14,7 +14,6 @@ coverage/
 # Entorno y secretos
 .env
 .env.*
-!.env.example
 
 # Logs
 *.log
@@ -22,13 +21,22 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-error.log*
 
-# Herramientas de agente
+# Herramientas de agente y material de IA (no se publica)
 .playwright-mcp/
-
-# Contenido de IA (no se publica)
 Documentos/
 opencode.json
 opencode.jsonc
 .opencode/
 .agents/
 .claude/
+.cursor/
+.windsurf/
+prompts/
+
+# Documentos de trabajo y generación de documentos (no se publica)
+docs/*.md
+docs/*.pdf
+docs/pdf-style.css
+*.docx
+*.pptx
+*.pages
